@@ -123,6 +123,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="definitions.h" />
+    <ClInclude Include="fcb.h" />
+    <ClInclude Include="file.h" />
+    <ClInclude Include="fs.h" />
+    <ClInclude Include="kernel_file.h" />
+    <ClInclude Include="kernel_fs.h" />
+    <ClInclude Include="part.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="particija.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="kernel_fs.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
