@@ -1,8 +1,10 @@
 #pragma once
 
+#include "definitions.h"
+
 struct FCB {
-	char name[8];
-	char ext[3];
+	char name[FNAMELEN];
+	char ext[FEXTLEN];
 	//unsigned char : 0; // padding
 	unsigned char padding = 0;
 	unsigned int index0;

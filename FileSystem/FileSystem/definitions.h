@@ -1,7 +1,15 @@
 #pragma once
 
+#include <unordered_map>
+#include <list>
+#include <deque>
+#include <string>
+#include <memory>
+
 typedef long FileCnt;
 typedef unsigned long BytesCnt;
+typedef unsigned int IndexEntry;
+
 const unsigned int FNAMELEN = 8;
 const unsigned int FEXTLEN = 3;
 

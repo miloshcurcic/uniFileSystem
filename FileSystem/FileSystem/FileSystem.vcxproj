@@ -123,10 +123,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="cluster_cache.h" />
     <ClInclude Include="definitions.h" />
     <ClInclude Include="fcb.h" />
     <ClInclude Include="file.h" />
     <ClInclude Include="fs.h" />
+    <ClInclude Include="win_srw_cond_variable.h" />
+    <ClInclude Include="win_srw_lock.h" />
+    <ClInclude Include="win_cs_cond_variable.h" />
+    <ClInclude Include="win_crit_section.h" />
+    <ClInclude Include="win_mutex.h" />
+    <ClInclude Include="win_semaphore.h" />
     <ClInclude Include="kernel_file.h" />
     <ClInclude Include="kernel_fs.h" />
     <ClInclude Include="part.h" />
@@ -135,7 +142,16 @@
     <Library Include="particija.lib" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="cluster_cache.cpp" />
+    <ClCompile Include="file_handle.h" />
+    <ClCompile Include="kernel_file.cpp" />
     <ClCompile Include="kernel_fs.cpp" />
+    <ClCompile Include="win_cs_cond_variable.cpp" />
+    <ClCompile Include="win_crit_section.cpp" />
+    <ClCompile Include="win_mutex.cpp" />
+    <ClCompile Include="win_semaphore.cpp" />
+    <ClCompile Include="win_srw_cond_variable.cpp" />
+    <ClCompile Include="win_srw_lock.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
