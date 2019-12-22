@@ -13,4 +13,6 @@ public:
 	void wait();
 	void signal();
 	void signalAll();
+
+	friend class WinCriticalSection;
 };

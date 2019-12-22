@@ -1,4 +1,5 @@
 #include "win_srw_cond_variable.h"
+#include "win_srw_lock.h"
 
 WinSRWConditionVariable::~WinSRWConditionVariable()
 {

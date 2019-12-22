@@ -29,11 +29,14 @@ void WinSlimReaderWriterLock::release_srw_shared()
 WinSRWConditionVariable* WinSlimReaderWriterLock::make_condition_variable()
 {
 	auto cond_variable = new WinSRWConditionVariable(this);
-	cond_list.push_back(std::unique_ptr<WinSRWConditionVariable>(cond_variable));
+	cond_list.push_back(cond_variable);
 	return cond_variable;
 }
 
 WinSlimReaderWriterLock::~WinSlimReaderWriterLock()
 {
+	for (auto cond : cond_list) {
+		delete cond;
+	}
 	cond_list.clear();
 }

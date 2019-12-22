@@ -23,6 +23,7 @@ std::tuple<ClusterNo, bool, char[ClusterSize]>* ClusterCache::find_cluster(Clust
 		else {
 			cluster_ptr = queue.back();
 			queue.pop_back();
+			cluster_map.erase(std::get<0>(*cluster_ptr));
 
 			if (std::get<1>(*cluster_ptr)) {
 				//Cluster was edited
@@ -35,13 +36,37 @@ std::tuple<ClusterNo, bool, char[ClusterSize]>* ClusterCache::find_cluster(Clust
 		}
 	}
 	else {
-		cluster_map.erase(cluster_no);
+		cluster_ptr = *cluster_map[cluster_no];
+		queue.erase(cluster_map[cluster_no]);
 	}
 
 	queue.push_front(cluster_ptr);
 	cluster_map[cluster_no] = queue.begin();
 
 	return cluster_ptr;
+}
+
+void ClusterCache::write_cluster(ClusterNo cluster_no, BytesCnt start_pos,BytesCnt bytes, const char* buffer)
+{
+	// check if start_pos + bytes > cluster_length
+	auto cluster_info = find_cluster(cluster_no);
+	auto cluster_data = std::get<2>(*cluster_info);
+	for (int i = start_pos; i < start_pos + bytes; i++) {
+		cluster_data[i] = buffer[i - start_pos];
+	}
+	std::get<1>(*cluster_info) = true;
+}
+
+void ClusterCache::read_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer)
+{
+	// check if start_pos + bytes > cluster_length
+	auto cluster_info = find_cluster(cluster_no);
+	auto cluster_data = std::get<2>(*cluster_info);
+	for (int i = start_pos; i < start_pos + bytes; i++) {
+		buffer[i-start_pos] = cluster_data[i];
+	}
+	std::get<1>(*cluster_info) = true;
+
 }
 
 void ClusterCache::flush_cache()

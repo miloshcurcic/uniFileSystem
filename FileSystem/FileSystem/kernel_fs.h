@@ -4,6 +4,7 @@
 
 class Partition;
 class KernelFile;
+class FileHandle;
 class FCB;
 
 class KernelFS {
@@ -20,7 +21,7 @@ public:
     char format();
     FileCnt readRootDir(); 
     char doesExist(char* fname);
-    KernelFile* open(char* fname, char mode);
+    KernelFile* open_file(char* fname, char mode);
 	void close_file(KernelFile* file);
     char deleteFile(char* fname);
 };

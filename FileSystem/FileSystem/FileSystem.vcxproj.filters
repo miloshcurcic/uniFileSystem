@@ -100,5 +100,16 @@
     <ClCompile Include="cluster_cache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="disk1.dat">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="p1.ini">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

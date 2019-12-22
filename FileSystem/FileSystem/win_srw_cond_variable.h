@@ -15,4 +15,6 @@ public:
 	void wait_exclusive();
 	void signal();
 	void signal_all();
+
+	friend class WinSlimReaderWriterLock;
 };

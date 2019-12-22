@@ -19,7 +19,7 @@ char KernelFS::mount(Partition* partition)
     root_dir_index0 = bit_vector_size;
 
 	bit_vector = new unsigned char*[bit_vector_size];
-	for (int i = 0; i < bit_vector_size; i++) {
+	for (unsigned int i = 0; i < bit_vector_size; i++) {
 		bit_vector[i] = new unsigned char[ClusterSize / BYTE_LEN];
 		mounted_partition->readCluster(i, (char*)bit_vector[i]);
 	}
@@ -34,12 +34,12 @@ char KernelFS::unmount()
 		return -1; // error
 	}
 
-	if (open_files.count != 0) {
+	if (open_files.size() != 0) {
 		// wait
 	}
 
 	// Return in-mem bit-vector to disc and deallocate it
-	for (int i = 0; i < bit_vector_size; i++) {
+	for (unsigned int i = 0; i < bit_vector_size; i++) {
 		mounted_partition->writeCluster(i, (char*)bit_vector[i]);
 		delete bit_vector[i];
 	}
@@ -55,7 +55,7 @@ char KernelFS::unmount()
 char KernelFS::format()
 {
 	formatting = true;
-	if (open_files.count != 0) {
+	if (open_files.size() != 0) {
 		// wait
 	}
 
@@ -65,7 +65,7 @@ char KernelFS::format()
 	return 0;
 }
 
-KernelFile* KernelFS::open(char* fname, char mode) // not synchronized
+KernelFile* KernelFS::open_file(char* fname, char mode) // not synchronized
 {
 	if (fname == nullptr) {
 		return nullptr;
@@ -75,7 +75,7 @@ KernelFile* KernelFS::open(char* fname, char mode) // not synchronized
 		return nullptr;
 	}
 
-	if (format) {
+	if (formatting) {
 		// Formatting, error
 		return nullptr;
 	}

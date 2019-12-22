@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <list>
 #include <Windows.h>
 
@@ -8,7 +7,7 @@ class WinSRWConditionVariable;
 
 class WinSlimReaderWriterLock {
 	SRWLOCK srw_lock;
-	std::list<std::unique_ptr<WinSRWConditionVariable>> cond_list;
+	std::list<WinSRWConditionVariable*> cond_list;
 public:
 	WinSlimReaderWriterLock();
 	void acquire_srw_exclusive();
