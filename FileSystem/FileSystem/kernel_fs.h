@@ -14,7 +14,6 @@ class KernelFS {
 	unsigned int bit_vector_size;
 	unsigned int root_dir_index0;
 	unsigned char** bit_vector;
-	IndexEntry root_dir_0[NUM_INDEX_ENTRIES];
 public:
     char mount(Partition* partition);
     char unmount(); 

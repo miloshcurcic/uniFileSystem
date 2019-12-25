@@ -125,6 +125,7 @@
   <ItemGroup>
     <ClInclude Include="cluster_cache.h" />
     <ClInclude Include="definitions.h" />
+    <ClInclude Include="directory_cache.h" />
     <ClInclude Include="fcb.h" />
     <ClInclude Include="file.h" />
     <ClInclude Include="fs.h" />
@@ -143,6 +144,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cluster_cache.cpp" />
+    <ClCompile Include="directory_cache.cpp" />
     <ClCompile Include="file_handle.h" />
     <ClCompile Include="kernel_file.cpp" />
     <ClCompile Include="kernel_fs.cpp" />

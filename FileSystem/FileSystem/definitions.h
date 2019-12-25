@@ -23,3 +23,6 @@ const unsigned int DIRECTORY_ENTRY_WIDTH = 32;
 
 const unsigned int NUM_INDEX_ENTRIES = ClusterSize / INDEX_ENTRY_WIDTH;
 const unsigned int NUM_DIRECTORY_ENTRIES = ClusterSize / DIRECTORY_ENTRY_WIDTH;
+
+const unsigned int DIRECTORY_INDEX_CACHE_SIZE = 8;
+const unsigned int DIRECTORY_TABLE_CACHE_SIZE = 32;

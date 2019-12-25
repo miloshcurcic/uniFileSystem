@@ -65,8 +65,6 @@ void ClusterCache::read_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesC
 	for (int i = start_pos; i < start_pos + bytes; i++) {
 		buffer[i-start_pos] = cluster_data[i];
 	}
-	std::get<1>(*cluster_info) = true;
-
 }
 
 void ClusterCache::flush_cache()
@@ -84,4 +82,3 @@ ClusterCache::~ClusterCache()
 {
 	flush_cache();
 }
-

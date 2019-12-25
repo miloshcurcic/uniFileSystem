@@ -63,6 +63,9 @@
     <ClInclude Include="cluster_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="directory_cache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Library Include="particija.lib">
@@ -101,6 +104,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="directory_cache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
