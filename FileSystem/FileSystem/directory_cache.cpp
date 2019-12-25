@@ -1,109 +1,131 @@
 #include "directory_cache.h"
+#include "part.h"
 
-DirectoryCache::DirectoryCache(Partition* partition) :
-	directory_index_cache(partition, DIRECTORY_INDEX_CACHE_SIZE),
-	directory_cache(partition, DIRECTORY_TABLE_CACHE_SIZE)
+DirectoryCache::DirectoryCache(Partition* partition, ClusterNo root_dir_index_0_cluster)
 {
+	// Read root dir index 0 for quick access
+	partition->readCluster(root_dir_index_0_cluster, (char*)root_dir_index_0);
+}
+
+
+
+void DirectoryCache::add_directory_cluster(ClusterNo cluster_no, char* buffer)
+{
+	std::tuple<ClusterNo, bool, char*> cluster_tuple { cluster_no, false, buffer };
+	if (directory_queue.size() == DIRECTORY_TABLE_CACHE_SIZE) {
+		auto returning = directory_queue.back();
+		directory_queue.pop_back();
+		directory_clusters.erase(std::get<0>(returning));
+		
+		if (std::get<1>(returning)) {
+			//Cluster was edited
+			partition->writeCluster(std::get<0>(returning), std::get<2>(returning));
+		}
+	}
+
+	directory_clusters.insert(cluster_no);
+	directory_queue.push_front(cluster_tuple);
 }
 
 FCB DirectoryCache::find_file(const char* file_name)
 {
-	unsigned int file_hash = calculate_hash(file_name);
-	unsigned int index_0 = get_index_0(file_hash);
-	unsigned int index_1 = get_index_1(file_hash);
-
-	IndexEntry index_table_1[NUM_INDEX_ENTRIES];
-	FCB fcb_table[NUM_DIRECTORY_ENTRIES];
-
-	for(int i = 0; i < NUM_INDEX_ENTRIES; i++) {
-		IndexEntry index_1_table_cluster = root_dir_0[index_0 + i];
-
-		if (index_1_table_cluster == 0) {
-			return zero_fcb;
-		}
-
-		directory_index_cache.read_cluster(index_1_table_cluster, 0, NUM_INDEX_ENTRIES * sizeof(IndexEntry), (char*)index_table_1);
-		
-		for (int j = 0; j < NUM_INDEX_ENTRIES; j++) {
-			IndexEntry dir_table_cluster = index_table_1[index_1 + j];
-
-			if (dir_table_cluster == 0) {
-				return zero_fcb;
+	for (auto cluster_tuple : directory_queue) {
+		FCB* fcb_array = (FCB*)std::get<2>(cluster_tuple);
+		for (int i = 0; i < NUM_DIRECTORY_ENTRIES; i++) {
+			if (memcmp(&fcb_array[i], &ZERO_FCB, sizeof(FCB))) {
+				break;
 			}
+			if (memcmp(&fcb_array[i].name, &file_name, FNAMELEN * sizeof(char))) {
+				return fcb_array[i];
+			}
+		}
+	}
 
-			directory_cache.read_cluster(dir_table_cluster, 0, NUM_DIRECTORY_ENTRIES * sizeof(FCB), (char*)fcb_table);
+	IndexEntry* temp0 = new IndexEntry[NUM_INDEX_ENTRIES];
+	FCB* temp1 = new FCB[NUM_DIRECTORY_ENTRIES];
 
-			for (int k = 0; k < NUM_DIRECTORY_ENTRIES; k++) {
-				if (std::memcmp(&fcb_table[k], &zero_fcb, sizeof(FCB))) {
-					return zero_fcb;
+	for (auto cluster_index : root_dir_index_0) {
+		partition->readCluster(cluster_index, (char*)temp0);
+
+		for (int i = 0; i < NUM_INDEX_ENTRIES; i++) {
+			if (directory_clusters.find(temp0[i]) != directory_clusters.end()) {
+				continue;
+			}
+			partition->readCluster(temp0[i], (char*)temp1);
+
+			for (int j = 0; j < NUM_DIRECTORY_ENTRIES; j++) {
+				if (memcmp(&temp1[j], &ZERO_FCB, sizeof(FCB))) {
+					break;
 				}
-
-				if (std::strncmp(fcb_table[k].name, file_name, FNAMELEN) == 0) {
-					return fcb_table[k];
+				if (memcmp(&temp1[j].name, &file_name, FNAMELEN * sizeof(char))) {
+					add_directory_cluster(temp0[i], (char*)temp1);
+					delete temp0;
+					return temp1[j];
 				}
 			}
 		}
 	}
-	return zero_fcb;
+
+	delete temp0;
+	delete temp1;
+	return ZERO_FCB;
 }
 
-void DirectoryCache::delete_file(const char* file_name) // not done, use temp cache buffer, prev/cur>
+bool DirectoryCache::delete_file(const char* file_name) // not done
 {
-	unsigned int file_hash = calculate_hash(file_name);
-	unsigned int index_0 = get_index_0(file_hash);
-	unsigned int index_1 = get_index_1(file_hash);
-
-	IndexEntry index_table_1[NUM_INDEX_ENTRIES];
-	FCB fcb_table[NUM_DIRECTORY_ENTRIES];
-
-	for (int i = 0; i < NUM_INDEX_ENTRIES; i++) {
-		IndexEntry index_1_table_cluster = root_dir_0[index_0 + i];
-		bool found = false;
-
-		if (index_1_table_cluster == 0) {
-			return;
-		}
-
-		directory_index_cache.read_cluster(index_1_table_cluster, 0, NUM_INDEX_ENTRIES * sizeof(IndexEntry), (char*)index_table_1);
-
-		for (int j = 0; j < NUM_INDEX_ENTRIES; j++) {
-			IndexEntry dir_table_cluster = index_table_1[index_1 + j];
-
-			if (dir_table_cluster == 0) {
+	for (auto cluster_tuple : directory_queue) {
+		FCB* fcb_array = (FCB*)std::get<2>(cluster_tuple);
+		for (int i = 0; i < NUM_DIRECTORY_ENTRIES; i++) {
+			if (memcmp(&fcb_array[i], &ZERO_FCB, sizeof(FCB))) {
+				break;
+			}
+			if (memcmp(&fcb_array[i].name, &file_name, FNAMELEN * sizeof(char))) {
+				int j = i;
+				for (j = i; j < NUM_DIRECTORY_ENTRIES - 1; j++) { // check if this is buggy
+					if (memcmp(&fcb_array[j + 1], &ZERO_FCB, sizeof(FCB))) {
+						break;
+					}
+					fcb_array[j] = fcb_array[j + 1];
+				}
+				fcb_array[j] = ZERO_FCB;
 				return;
 			}
+		}
+	}
 
-			directory_cache.read_cluster(dir_table_cluster, 0, NUM_DIRECTORY_ENTRIES * sizeof(FCB), (char*)fcb_table);
+	IndexEntry* temp0 = new IndexEntry[NUM_INDEX_ENTRIES];
+	FCB* temp1 = new FCB[NUM_DIRECTORY_ENTRIES];
 
-			for (int k = 0; k < NUM_DIRECTORY_ENTRIES-1; k++) {
-				if (std::memcmp(&fcb_table[k], &zero_fcb, sizeof(FCB))) {
+	for (auto cluster_index : root_dir_index_0) {
+		partition->readCluster(cluster_index, (char*)temp0);
+
+		for (int i = 0; i < NUM_INDEX_ENTRIES; i++) {
+			if (directory_clusters.find(temp0[i]) != directory_clusters.end()) {
+				continue;
+			}
+			partition->readCluster(temp0[i], (char*)temp1);
+
+			for (int j = 0; j < NUM_DIRECTORY_ENTRIES; j++) {
+				if (memcmp(&temp1[j], &ZERO_FCB, sizeof(FCB))) {
+					break;
+				}
+				if (memcmp(&temp1[j].name, &file_name, FNAMELEN * sizeof(char))) {
+					add_directory_cluster(temp0[i], (char*)temp1);
+					int j = i;
+					for (j = i; j < NUM_DIRECTORY_ENTRIES - 1; j++) { // check if this is buggy
+						if (memcmp(&temp1[j + 1], &ZERO_FCB, sizeof(FCB))) {
+							break;
+						}
+						temp1[j] = temp1[j + 1];
+					}
+					temp1[j] = ZERO_FCB;
+					delete temp0;
 					return;
-				}
-
-				if (std::strncmp(fcb_table[k].name, file_name, FNAMELEN) == 0) {
-					found = true;
-				}
-
-				if (found) {
-					fcb_table[k] = fcb_table[k + 1];
 				}
 			}
 		}
 	}
-	return;
-}
 
-unsigned int DirectoryCache::calculate_hash(const char *file_name)
-{
-	return std::hash<const char*>{}(file_name) % (NUM_INDEX_ENTRIES * NUM_INDEX_ENTRIES);
-}
-
-unsigned int DirectoryCache::get_index_0(unsigned int hash)
-{
-	return hash / NUM_INDEX_ENTRIES;
-}
-
-unsigned int DirectoryCache::get_index_1(unsigned int hash)
-{
-	return hash % NUM_INDEX_ENTRIES;
+	delete temp0;
+	delete temp1;
 }

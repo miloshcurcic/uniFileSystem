@@ -3,19 +3,19 @@
 
 #include <tuple>
 
-ClusterCache::ClusterCache(Partition* partition, unsigned int max_length)
+ClusterCache::ClusterCache(Partition* partition)
 {
 	this->partition = partition;
-	this->max_length = max_length;
 }
 
 std::tuple<ClusterNo, bool, char[ClusterSize]>* ClusterCache::find_cluster(ClusterNo cluster_no)
 {
 	std::tuple<ClusterNo, bool, char[ClusterSize]> *cluster_ptr;
 	if (cluster_map.find(cluster_no) == cluster_map.end()) {
-		if (cluster_map.size() != max_length) {
+		if (cluster_map.size() != CLUSTER_CACHE_SIZE) {
 			cluster_ptr = new std::tuple<ClusterNo, bool, char[ClusterSize]>();
 
+			clusters.insert(cluster_no);
 			partition->readCluster(cluster_no, std::get<2>(*cluster_ptr));
 			std::get<0>(*cluster_ptr) = cluster_no;
 			std::get<1>(*cluster_ptr) = false;
@@ -24,12 +24,14 @@ std::tuple<ClusterNo, bool, char[ClusterSize]>* ClusterCache::find_cluster(Clust
 			cluster_ptr = queue.back();
 			queue.pop_back();
 			cluster_map.erase(std::get<0>(*cluster_ptr));
+			clusters.erase(std::get<0>(*cluster_ptr));
 
 			if (std::get<1>(*cluster_ptr)) {
 				//Cluster was edited
 				partition->writeCluster(std::get<0>(*cluster_ptr), std::get<2>(*cluster_ptr));
 			}
 
+			clusters.insert(cluster_no);
 			partition->readCluster(cluster_no, std::get<2>(*cluster_ptr));
 			std::get<0>(*cluster_ptr) = cluster_no;
 			std::get<1>(*cluster_ptr) = false;
@@ -73,6 +75,7 @@ void ClusterCache::flush_cache()
 		if (std::get<1>(*tuple)) {
 			partition->writeCluster(std::get<0>(*tuple), std::get<2>(*tuple));
 		}
+		delete tuple;
 	}
 	queue.clear();
 	cluster_map.clear();

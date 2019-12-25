@@ -23,8 +23,6 @@ char KernelFS::mount(Partition* partition)
 		bit_vector[i] = new unsigned char[ClusterSize / BYTE_LEN];
 		mounted_partition->readCluster(i, (char*)bit_vector[i]);
 	}
-	// Read root dir index 0 for quick access
-	mounted_partition->readCluster(root_dir_index0, (char*)root_dir_0);
 
 }
 

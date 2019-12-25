@@ -4,15 +4,16 @@
 #include "fcb.h"
 
 class DirectoryCache {
-	ClusterCache directory_index_cache;
-	ClusterCache directory_cache;
-	IndexEntry root_dir_0[NUM_INDEX_ENTRIES];
-	const FCB zero_fcb;
+	IndexEntry root_dir_index_0[NUM_INDEX_ENTRIES];
+
+	std::list<std::tuple<ClusterNo, bool, char*>> directory_queue;
+	std::unordered_set<ClusterNo> directory_clusters;
+
+	Partition* partition;
 public:
-	DirectoryCache(Partition *partition);
+	DirectoryCache(Partition* partition, ClusterNo root_dir_index_0_cluster);
 	FCB find_file(const char* file_name);
-	void delete_file(const char* file_name);
-	unsigned int calculate_hash(const char *file_name);
-	unsigned int get_index_0(unsigned int hash);
-	unsigned int get_index_1(unsigned int hash);
+	bool delete_file(const char* file_name);
+
+	void add_directory_cluster(ClusterNo cluster_no, char* buffer);
 };
