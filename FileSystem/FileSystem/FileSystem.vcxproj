@@ -125,10 +125,11 @@
   <ItemGroup>
     <ClInclude Include="cluster_cache.h" />
     <ClInclude Include="definitions.h" />
-    <ClInclude Include="directory_cache.h" />
+    <ClInclude Include="directory_manager.h" />
     <ClInclude Include="fcb.h" />
     <ClInclude Include="file.h" />
     <ClInclude Include="fs.h" />
+    <ClInclude Include="memory_manager.h" />
     <ClInclude Include="win_srw_cond_variable.h" />
     <ClInclude Include="win_srw_lock.h" />
     <ClInclude Include="win_cs_cond_variable.h" />
@@ -144,11 +145,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cluster_cache.cpp" />
-    <ClCompile Include="directory_cache.cpp" />
+    <ClCompile Include="directory_manager.cpp" />
     <ClCompile Include="file_handle.h" />
     <ClCompile Include="kernel_file.cpp" />
     <ClCompile Include="kernel_fs.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="memory_manager.cpp" />
     <ClCompile Include="win_cs_cond_variable.cpp" />
     <ClCompile Include="win_crit_section.cpp" />
     <ClCompile Include="win_mutex.cpp" />

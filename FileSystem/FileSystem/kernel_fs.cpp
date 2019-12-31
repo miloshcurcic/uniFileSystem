@@ -1,6 +1,8 @@
 #include "kernel_fs.h"
 #include "kernel_file.h"
 #include "file_handle.h"
+#include "memory_manager.h"
+#include "directory_manager.h"
 #include "part.h"
 
 char KernelFS::mount(Partition* partition)
@@ -13,17 +15,10 @@ char KernelFS::mount(Partition* partition)
 	if (mounted_partition != nullptr) {
 		// wait till unmounted
 	}
-
+	memory_manager = new MemoryManager(partition);
+	directory_manager = new DirectoryManager(partition, memory_manager);
     mounted_partition = partition;
-    bit_vector_size = ClusterSize * BYTE_LEN / partition->getNumOfClusters() + (ClusterSize * BYTE_LEN % partition->getNumOfClusters() != 0 ? 1 : 0);
-    root_dir_index0 = bit_vector_size;
-
-	bit_vector = new unsigned char*[bit_vector_size];
-	for (unsigned int i = 0; i < bit_vector_size; i++) {
-		bit_vector[i] = new unsigned char[ClusterSize / BYTE_LEN];
-		mounted_partition->readCluster(i, (char*)bit_vector[i]);
-	}
-
+	return 1;
 }
 
 char KernelFS::unmount()
@@ -36,14 +31,11 @@ char KernelFS::unmount()
 		// wait
 	}
 
-	// Return in-mem bit-vector to disc and deallocate it
-	for (unsigned int i = 0; i < bit_vector_size; i++) {
-		mounted_partition->writeCluster(i, (char*)bit_vector[i]);
-		delete bit_vector[i];
-	}
-	delete bit_vector;
-	bit_vector = nullptr;
+	delete memory_manager;
+	delete directory_manager;
 
+	memory_manager = nullptr;
+	directory_manager = nullptr;
     mounted_partition = nullptr;
     
 	// do extra clean-up

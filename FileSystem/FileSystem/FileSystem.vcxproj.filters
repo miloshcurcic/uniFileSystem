@@ -63,7 +63,10 @@
     <ClInclude Include="cluster_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="directory_cache.h">
+    <ClInclude Include="memory_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directory_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -106,7 +109,10 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="directory_cache.cpp">
+    <ClCompile Include="memory_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="directory_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

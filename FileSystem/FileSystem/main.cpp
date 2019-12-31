@@ -10,7 +10,7 @@ void write5chars(char* arr, unsigned int start_pos) {
 
 int main() {
 	auto part = new Partition((char*)"p1.ini");
-	auto cluster_cache = new ClusterCache(part, 3);
+	auto cluster_cache = new ClusterCache(part);
 
 	char* r_buffer = new char[5];
 	char* w_buffer = new char[5]{ "test" };

@@ -5,15 +5,17 @@
 class Partition;
 class KernelFile;
 class FileHandle;
+class MemoryManager;
+class DirectoryManager;
 class FCB;
 
 class KernelFS {
 	bool formatting = false;
 	Partition* mounted_partition = nullptr;
+	MemoryManager* memory_manager = nullptr;
+	DirectoryManager* directory_manager = nullptr;
 	std::unordered_map<std::string, FileHandle*> open_files;
-	unsigned int bit_vector_size;
 	unsigned int root_dir_index0;
-	unsigned char** bit_vector;
 public:
     char mount(Partition* partition);
     char unmount(); 
