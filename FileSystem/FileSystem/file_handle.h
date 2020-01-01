@@ -1,11 +1,10 @@
-class FCB;
+#pragma once
+
+#include "fcb.h"
 
 class FileHandle {
-private:
-	FCB* fcb;
-	unsigned int num_readers = 0;
-	bool write_access = false;
-
-	friend class KernelFS;
-	friend class KernelFile;
+	FCB fcb;
+	unsigned int read_count = 0;
+public:
+	FileHandle(const FCB& fcb);
 };

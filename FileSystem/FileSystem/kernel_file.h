@@ -6,12 +6,13 @@ class FileHandle;
 class KernelFS;
 
 class KernelFile {
-	std::string file_path;
 	FileHandle* file_handle;
+	std::string path;
+	BytesCnt pos;
 	char mode;
 	KernelFS* file_system;
 public:
-	KernelFile(std::string file_path, FileHandle* file_handle, char mode);
+	KernelFile(KernelFS* file_system, std::string path, FileHandle* file_handle, char mode);
 	void close();
 	char write(BytesCnt, char* buffer);
 	BytesCnt read(BytesCnt, char* buffer);

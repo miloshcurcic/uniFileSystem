@@ -1,6 +1,7 @@
 #pragma once
 
 #include "definitions.h"
+#include <regex>
 
 class Partition;
 class KernelFile;
@@ -16,13 +17,14 @@ class KernelFS {
 	DirectoryManager* directory_manager = nullptr;
 	std::unordered_map<std::string, FileHandle*> open_files;
 	unsigned int root_dir_index0;
+	static const std::regex file_regex;
 public:
     char mount(Partition* partition);
     char unmount(); 
     char format();
     FileCnt readRootDir(); 
-    char doesExist(char* fname);
-    KernelFile* open_file(char* fname, char mode);
-	void close_file(KernelFile* file);
-    char deleteFile(char* fname);
+    char doesExist(const char* fname);
+    KernelFile* open_file(const char* fname, char mode);
+	void close_file(const KernelFile* file);
+    char deleteFile(const char* fname);
 };

@@ -69,6 +69,9 @@
     <ClInclude Include="directory_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="file_handle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Library Include="particija.lib">
@@ -81,9 +84,6 @@
     </ClCompile>
     <ClCompile Include="kernel_file.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="file_handle.h">
-      <Filter>Header Files</Filter>
     </ClCompile>
     <ClCompile Include="win_semaphore.cpp">
       <Filter>Source Files\Windows Synchronization</Filter>
@@ -113,6 +113,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="directory_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="file_handle.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fcb.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="file.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -4,6 +4,7 @@
 class FCB;
 class MemoryManager;
 class Partition;
+class FileHandle;
 
 class DirectoryManager {
 	MemoryManager* memory_manager;
@@ -17,7 +18,11 @@ class DirectoryManager {
 	Partition* partition;
 public:
 	DirectoryManager(Partition* partition, MemoryManager* memory_manager);
-	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> find_file(const char* file_name);
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> find_file(const char* file_name, const char* file_ext);
+	FileHandle* create_file_handle(const char* file_name, const char* file_ext);
+	FileHandle* add_and_get_file_handle(const FCB& file_info);
 	bool add_file(const FCB& file_info);
-	bool delete_file(const char* file_name);
+	bool delete_file(const char* file_name, const char* file_ext);
+	FileCnt get_file_count();
+	bool does_file_exist(const char* file_name, const char* file_ext);
 };

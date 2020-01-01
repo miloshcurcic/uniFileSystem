@@ -4,6 +4,9 @@
 
 class FCB {
 public:
+	FCB();
+	FCB(const char* name, const char* ext);
+
 	char name[FNAMELEN] = { 0 };
 	char ext[FEXTLEN] = { 0 };
 	//unsigned char : 0; // padding?

@@ -1,6 +1,7 @@
 #include "directory_manager.h"
 #include "memory_manager.h"
 #include "fcb.h"
+#include "file_handle.h"
 #include "part.h"
 
 DirectoryManager::DirectoryManager(Partition* partition, MemoryManager* memory_manager)
@@ -36,7 +37,7 @@ DirectoryManager::DirectoryManager(Partition* partition, MemoryManager* memory_m
 
 }
 
-std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_file(const char* file_name)
+std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_file(const char* file_name, const char* file_ext)
 {
 	IndexEntry temp0[NUM_INDEX_ENTRIES];
 	FCB temp1[NUM_DIRECTORY_ENTRIES];
@@ -54,7 +55,7 @@ std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_fil
 				if (memcmp(&temp1[j], &ZERO_FCB, sizeof(FCB))) {
 					return res;
 				}
-				if (memcmp(&temp1[j].name, &file_name, FNAMELEN * sizeof(char))) {
+				if ((memcmp(&temp1[j].name, &file_name, FNAMELEN * sizeof(char)) == 0) && (memcmp(&temp1[j].ext, &file_ext, FEXTLEN * sizeof(char)) == 0)) {
 					std::get<3>(res) = temp1[j];
 					return res;
 				}
@@ -69,9 +70,28 @@ std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_fil
 	return res;
 }
 
+FileHandle* DirectoryManager::create_file_handle(const char* file_name, const char* file_ext)
+{
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
+	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
+		return nullptr;
+	}
+
+	return new FileHandle(std::get<3>(file_data));	
+}
+
+FileHandle* DirectoryManager::add_and_get_file_handle(const FCB& fcb)
+{
+	if (add_file(fcb) == false) {
+		return nullptr;
+	}
+
+	return new FileHandle(fcb);
+}
+
 bool DirectoryManager::add_file(const FCB& file_info)
 {
-	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_info.name);
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_info.name, file_info.ext);
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) != 0) {
 		return false;
 	}
@@ -119,9 +139,9 @@ bool DirectoryManager::add_file(const FCB& file_info)
 	return true;
 }
 
-bool DirectoryManager::delete_file(const char* file_name)
+bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
 {
-	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name);
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
 		return false;
 	}
@@ -235,4 +255,16 @@ bool DirectoryManager::delete_file(const char* file_name)
 	}
 
 	return true;
+}
+
+FileCnt DirectoryManager::get_file_count()
+{
+	return last_index * NUM_DIRECTORY_ENTRIES + last_index_count;
+}
+
+bool DirectoryManager::does_file_exist(const char* file_name, const char* file_ext)
+{
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
+
+	return std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0;
 }

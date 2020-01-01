@@ -5,6 +5,8 @@
 #include "directory_manager.h"
 #include "part.h"
 
+const std::regex KernelFS::file_regex("(?:\\\\|/)([[:w:]_]{1,8})\\.([[:w:]_]{1,3})");
+
 char KernelFS::mount(Partition* partition)
 {
     if (partition == nullptr) {
@@ -55,7 +57,25 @@ char KernelFS::format()
 	return 0;
 }
 
-KernelFile* KernelFS::open_file(char* fname, char mode) // not synchronized
+FileCnt KernelFS::readRootDir()
+{
+	return directory_manager->get_file_count();
+}
+
+char KernelFS::doesExist(const char* fname)
+{
+	std::smatch match;
+	std::string sname(fname);
+
+	if (!std::regex_search(sname, match, file_regex)) {
+		return directory_manager->does_file_exist(match.str(1).c_str(), match.str(2).c_str());
+	}
+	else {
+		return 0;
+	}
+}
+
+KernelFile* KernelFS::open_file(const char* fname, char mode) // not synchronized
 {
 	if (fname == nullptr) {
 		return nullptr;
@@ -70,62 +90,61 @@ KernelFile* KernelFS::open_file(char* fname, char mode) // not synchronized
 		return nullptr;
 	}
 
+	std::smatch match;
+	std::string sname(fname);
+
+	if (!std::regex_search(sname, match, file_regex)) {
+		return nullptr;
+	}
+
 	FileHandle* handle = nullptr;
 
-	auto located = open_files.find(fname);
-	if (located != open_files.end()) {
-		handle = located->second;
-		
+	
+	if (mode == 'w') {
+		directory_manager->delete_file(match.str(1).c_str(), match.str(2).c_str());
+		FCB new_file(match.str(1).c_str(), match.str(2).c_str());
+		handle = directory_manager->add_and_get_file_handle(new_file);
 	}
 	else {
-		// find file and add it to map if it exists
-
-	}
-
-	if (handle == nullptr) {
-		if (mode == 'w') {
-			// Create a new file
+		auto located = open_files.find(sname);
+		if (located != open_files.end()) {
+			handle = located->second;
 		}
 		else {
-			// File doesn't exist error
-			return nullptr;
+			handle = directory_manager->create_file_handle(match.str(1).c_str(), match.str(2).c_str());
+			if (handle == nullptr) {
+				return nullptr; // error
+			}
+
+			open_files[sname] = handle;
 		}
 	}
 
-	if (mode == 'r') {
-		if (handle->write_access) {
-			// wait
-		}
-
-		handle->num_readers++;
-	}
-	else {
-		if (handle->write_access || handle->num_readers != 0) {
-			// wait
-		}
-
-		if (handle != nullptr && mode == 'w') {
-			// reuse handle for new file
-		}
-
-		handle->write_access = true;
-	}
-
-	return new KernelFile(fname, handle, mode);
+	return new KernelFile(this, sname, handle, mode);
 }
 
-void KernelFS::close_file(KernelFile* file) // not synchronized
+void KernelFS::close_file(const KernelFile* file)
 {
-	if (file->mode == 'r') {
-		file->file_handle->num_readers--;
-	}
-	else {
-		file->file_handle->write_access = false;
+	open_files.erase(file->path);
+}
+
+char KernelFS::deleteFile(const char* fname)
+{
+	std::smatch match;
+	std::string sname(fname);
+
+	if (!std::regex_search(sname, match, file_regex)) {
+		return 0;
 	}
 
-	if (!file->file_handle->write_access && (file->file_handle->num_readers == 0)) {
-		open_files.erase(file->file_path);
-		delete file->file_handle; // add destructor for this, deallocate any used memory
-		file->file_handle = nullptr;
+	auto located = open_files.find(sname);
+	if (located != open_files.end()) {
+		return 0;
 	}
+	
+	if (!directory_manager->delete_file(match.str(1).c_str(), match.str(2).c_str())) {
+		return 0;
+	}
+
+	return 1;
 }

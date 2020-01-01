@@ -1,16 +1,27 @@
 #include "kernel_fs.h"
 #include "kernel_file.h"
+#include "file_handle.h"
 
-
-
-KernelFile::KernelFile(std::string file_path, FileHandle* file_handle, char mode)
+KernelFile::KernelFile(KernelFS* file_system, std::string path, FileHandle* file_handle, char mode)
 {
-	this->file_path = file_path;
+	this->path = path;
+	this->file_system = file_system;
 	this->file_handle = file_handle;
 	this->mode = mode;
 }
 
 void KernelFile::close()
 {
+	// handle options
 	file_system->close_file(this);
+}
+
+BytesCnt KernelFile::filePos()
+{
+	return pos;
+}
+
+BytesCnt KernelFile::getFileSize()
+{
+	return 0;
 }
