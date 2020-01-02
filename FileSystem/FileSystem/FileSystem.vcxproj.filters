@@ -19,6 +19,9 @@
     <Filter Include="Source Files\Windows Synchronization">
       <UniqueIdentifier>{3ae3dcf6-ba8a-473c-af6a-a2d36d0aabda}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Test">
+      <UniqueIdentifier>{44aa2aa6-ecdf-44e6-8cd2-69d09d511888}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="part.h">
@@ -71,6 +74,9 @@
     </ClInclude>
     <ClInclude Include="file_handle.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="testprimer.h">
+      <Filter>Test</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -127,6 +133,12 @@
     <ClCompile Include="file.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="nit1.cpp">
+      <Filter>Test</Filter>
+    </ClCompile>
+    <ClCompile Include="nit2.cpp">
+      <Filter>Test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="disk1.dat">
@@ -135,5 +147,16 @@
     <None Include="p1.ini">
       <Filter>Resource Files</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Ulaz 0.5MB.jpg">
+      <Filter>Test</Filter>
+    </Image>
+    <Image Include="Ulaz 2MB.jpg">
+      <Filter>Test</Filter>
+    </Image>
+    <Image Include="ulaz.dat">
+      <Filter>Test</Filter>
+    </Image>
   </ItemGroup>
 </Project>

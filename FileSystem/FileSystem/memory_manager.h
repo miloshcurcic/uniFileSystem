@@ -15,5 +15,6 @@ public:
 	ClusterNo allocate_cluster(ClusterNo near_to = 0);
 	ClusterNo allocate_empty_cluster(ClusterNo near_to = 0);
 	void deallocate_cluster(ClusterNo cluster);
+	void format();
 	~MemoryManager();
 };

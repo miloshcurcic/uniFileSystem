@@ -6,7 +6,7 @@
 
 DirectoryManager::DirectoryManager(Partition* partition, MemoryManager* memory_manager)
 {
-	root_dir_cluster_0 = ClusterSize * BYTE_LEN / partition->getNumOfClusters() + (ClusterSize * BYTE_LEN % partition->getNumOfClusters() != 0 ? 1 : 0);
+	root_dir_cluster_0 =  partition->getNumOfClusters() / (ClusterSize * BYTE_LEN) +  (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? 1 : 0);
 	this->memory_manager = memory_manager;
 	this->partition = partition;
 
@@ -45,6 +45,34 @@ std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_fil
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> res;
 	memset(&res, 0, sizeof(std::tuple<IndexEntry, IndexEntry, unsigned int, FCB>));
 
+	char chk_name[FNAMELEN];
+	int k = 0;
+	while (file_name[k] != 0) {
+		if (k >= FNAMELEN) {
+			return res;
+		}
+		chk_name[k] = file_name[k];
+		k++;
+	}
+	while (k < FNAMELEN) {
+		chk_name[k] = ' ';
+		k++;
+	}
+
+	char chk_ext[FEXTLEN];
+	k = 0;
+	while (file_ext[k] != 0) {
+		if (k >= FNAMELEN) {
+			return res;
+		}
+		chk_ext[k] = file_ext[k];
+		k++;
+	}
+	while (k < FEXTLEN) {
+		chk_ext[k] = ' ';
+		k++;
+	}
+
 	for (auto cluster_index : root_dir_index_0) {
 		partition->readCluster(cluster_index, (char*)temp0);
 
@@ -52,10 +80,10 @@ std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_fil
 			partition->readCluster(temp0[i], (char*)temp1);
 
 			for (int j = 0; j < NUM_DIRECTORY_ENTRIES; j++) {
-				if (memcmp(&temp1[j], &ZERO_FCB, sizeof(FCB))) {
+				if (memcmp(&temp1[j], &ZERO_FCB, sizeof(FCB)) == 0) {
 					return res;
 				}
-				if ((memcmp(&temp1[j].name, &file_name, FNAMELEN * sizeof(char)) == 0) && (memcmp(&temp1[j].ext, &file_ext, FEXTLEN * sizeof(char)) == 0)) {
+				if ((memcmp(&temp1[j].name, &chk_name, FNAMELEN * sizeof(char)) == 0) && (memcmp(&temp1[j].ext, &chk_ext, FEXTLEN * sizeof(char)) == 0)) {
 					std::get<3>(res) = temp1[j];
 					return res;
 				}
@@ -137,6 +165,63 @@ bool DirectoryManager::add_file(const FCB& file_info)
 
 	partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
 	return true;
+}
+
+void DirectoryManager::update_or_add(const FCB& file_info)
+{
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_info.name, file_info.ext);
+	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
+
+		IndexEntry temp0[NUM_INDEX_ENTRIES];
+		FCB temp1[NUM_DIRECTORY_ENTRIES];
+
+		partition->readCluster(root_dir_index_0[std::get<0>(file_data)], (char*)temp0);
+		partition->readCluster(temp0[std::get<1>(file_data)], (char*)temp1);
+		
+		temp1[std::get<2>(file_data)] = file_info;
+
+		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
+	}
+	if (last_index_count == NUM_DIRECTORY_ENTRIES) {
+		last_index++;
+		last_index_count = 0;
+	}
+
+	if (root_dir_index_0[last_index / NUM_INDEX_ENTRIES] == 0) {
+		// Check if allocation failed
+		unsigned int near_to = 0;
+		if (last_index == 0) {
+			near_to = root_dir_cluster_0;
+		}
+		else {
+			near_to = root_dir_index_0[((last_index / NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
+		}
+		root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
+	}
+
+	IndexEntry temp0[NUM_INDEX_ENTRIES];
+	partition->readCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
+
+	if (temp0[last_index % NUM_INDEX_ENTRIES] == 0) {
+		// What if alloc failed
+		unsigned int near_to = 0;
+		if (last_index % NUM_INDEX_ENTRIES != 0) {
+			near_to = temp0[((last_index % NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
+		}
+		else {
+			near_to = root_dir_index_0[last_index / NUM_INDEX_ENTRIES];
+		}
+		temp0[last_index % NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
+		partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
+	}
+
+	FCB temp1[NUM_DIRECTORY_ENTRIES];
+	partition->readCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
+
+	temp1[last_index_count] = file_info;
+	last_index_count++;
+
+	partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
 }
 
 bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
@@ -262,9 +347,20 @@ FileCnt DirectoryManager::get_file_count()
 	return last_index * NUM_DIRECTORY_ENTRIES + last_index_count;
 }
 
+void DirectoryManager::format()
+{
+	memset(root_dir_index_0, 0, ClusterSize * sizeof(unsigned char));
+	last_index = last_index_count = 0;
+}
+
 bool DirectoryManager::does_file_exist(const char* file_name, const char* file_ext)
 {
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
 
-	return std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0;
+	return std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) != 0;
+}
+
+DirectoryManager::~DirectoryManager()
+{
+	partition->writeCluster(root_dir_cluster_0, (char*)root_dir_index_0);
 }

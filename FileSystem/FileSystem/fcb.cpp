@@ -13,6 +13,7 @@ FCB::FCB(const char* name, const char* ext)
 	}
 	while (i < FNAMELEN) {
 		this->name[i] = ' ';
+		i++;
 	}
 
 	i = 0;
@@ -22,5 +23,6 @@ FCB::FCB(const char* name, const char* ext)
 	}
 	while (i < FEXTLEN) {
 		this->ext[i] = ' ';
+		i++;
 	}
 }

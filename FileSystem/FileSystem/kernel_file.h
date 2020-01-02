@@ -14,13 +14,13 @@ class KernelFile {
 public:
 	KernelFile(KernelFS* file_system, std::string path, FileHandle* file_handle, char mode);
 	void close();
-	char write(BytesCnt, char* buffer);
-	BytesCnt read(BytesCnt, char* buffer);
-	char seek(BytesCnt);
+	char write(BytesCnt count, char* buffer);
+	BytesCnt read(BytesCnt count, char* buffer);
+	char seek(BytesCnt pos);
 	BytesCnt filePos();
 	char eof();
 	BytesCnt getFileSize();
-	char truncate();
+	char truncate(); //todo
 
 	friend class KernelFS;
 };

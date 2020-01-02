@@ -22,7 +22,10 @@ public:
 	FileHandle* create_file_handle(const char* file_name, const char* file_ext);
 	FileHandle* add_and_get_file_handle(const FCB& file_info);
 	bool add_file(const FCB& file_info);
+	void update_or_add(const FCB& file_info);
 	bool delete_file(const char* file_name, const char* file_ext);
 	FileCnt get_file_count();
+	void format();
 	bool does_file_exist(const char* file_name, const char* file_ext);
+	~DirectoryManager();
 };

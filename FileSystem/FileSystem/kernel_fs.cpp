@@ -3,6 +3,7 @@
 #include "file_handle.h"
 #include "memory_manager.h"
 #include "directory_manager.h"
+#include "cluster_cache.h"
 #include "part.h"
 
 const std::regex KernelFS::file_regex("(?:\\\\|/)([[:w:]_]{1,8})\\.([[:w:]_]{1,3})");
@@ -19,7 +20,8 @@ char KernelFS::mount(Partition* partition)
 	}
 	memory_manager = new MemoryManager(partition);
 	directory_manager = new DirectoryManager(partition, memory_manager);
-    mounted_partition = partition;
+	cluster_cache = new ClusterCache(partition);
+	mounted_partition = partition;
 	return 1;
 }
 
@@ -35,11 +37,13 @@ char KernelFS::unmount()
 
 	delete memory_manager;
 	delete directory_manager;
+	delete cluster_cache;
 
 	memory_manager = nullptr;
 	directory_manager = nullptr;
     mounted_partition = nullptr;
-    
+	cluster_cache = nullptr;
+
 	// do extra clean-up
 	return 0;
 }
@@ -51,9 +55,9 @@ char KernelFS::format()
 		// wait
 	}
 
-	// initialize bit vector
-	// initialize root dir
-
+	memory_manager->format();
+	directory_manager->format();
+	formatting = false;
 	return 0;
 }
 
@@ -125,6 +129,7 @@ KernelFile* KernelFS::open_file(const char* fname, char mode) // not synchronize
 
 void KernelFS::close_file(const KernelFile* file)
 {
+	directory_manager->update_or_add(file->file_handle->get_fcb());
 	open_files.erase(file->path);
 }
 
@@ -147,4 +152,36 @@ char KernelFS::deleteFile(const char* fname)
 	}
 
 	return 1;
+}
+
+void KernelFS::write_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, const char* buffer)
+{
+	cluster_cache->write_cluster(cluster_no, start_pos, bytes, buffer);
+}
+
+void KernelFS::read_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer)
+{
+	cluster_cache->read_cluster(cluster_no, start_pos, bytes, buffer);
+}
+
+std::list<ClusterNo> KernelFS::allocate_n_nearby_clusters(ClusterNo near_to, unsigned int count)
+{
+	std::list<ClusterNo> res;
+	for (unsigned int i = 0; i < count; i++) {
+		// error check
+		ClusterNo cluster = memory_manager->allocate_cluster(near_to);
+		res.push_back(cluster);
+		near_to = cluster;
+	}
+	return res;
+}
+
+ClusterNo KernelFS::allocate_nearby_cluster(ClusterNo near_to)
+{
+	return memory_manager->allocate_cluster(near_to);
+}
+
+ClusterNo KernelFS::allocate_nearby_empty_cluster(ClusterNo near_to)
+{
+	return memory_manager->allocate_empty_cluster(near_to);
 }

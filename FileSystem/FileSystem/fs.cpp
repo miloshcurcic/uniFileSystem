@@ -2,14 +2,14 @@
 #include "kernel_fs.h"
 #include "file.h"
 
+KernelFS* FS::myImpl = new KernelFS();
+
 FS::FS()
 {
-	myImpl = new KernelFS();
 }
 
 FS::~FS()
 {
-	delete myImpl;
 }
 
 char FS::mount(Partition* partition)
