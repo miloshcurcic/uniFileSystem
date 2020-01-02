@@ -112,9 +112,6 @@
     <ClCompile Include="cluster_cache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="memory_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -139,6 +136,9 @@
     <ClCompile Include="nit2.cpp">
       <Filter>Test</Filter>
     </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="disk1.dat">
@@ -147,14 +147,11 @@
     <None Include="p1.ini">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="ulaz.dat">
+      <Filter>Test</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="Ulaz 0.5MB.jpg">
-      <Filter>Test</Filter>
-    </Image>
-    <Image Include="Ulaz 2MB.jpg">
-      <Filter>Test</Filter>
-    </Image>
     <Image Include="ulaz.dat">
       <Filter>Test</Filter>
     </Image>

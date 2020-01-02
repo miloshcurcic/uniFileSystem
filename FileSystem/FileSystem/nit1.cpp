@@ -11,7 +11,7 @@ DWORD WINAPI nit1run(){
 	wait(mutex); cout<< threadName << ": Formatirana particija"<<endl; signal(mutex);
 	signal(sem12); //signalizira niti 2
 	wait(mutex); cout << threadName << ": wait 1" << endl; signal(mutex);
-	//wait(sem21); //ceka nit1
+	wait(sem21); //ceka nit1
 	{
 		char filepath[]="/fajl1.dat";
 		File *f=FS::open(filepath,'w');
@@ -43,9 +43,9 @@ DWORD WINAPI nit1run(){
 		delete src;
 		wait(mutex); cout<< threadName << ": Zatvoren fajl '" << filepath << "'"<<endl; signal(mutex);
 	}
-	//signal(sem12); // signalizira niti 2
+	signal(sem12); // signalizira niti 2
 	wait(mutex); cout<< threadName << ": wait 2"<<endl; signal(mutex);
-	//wait(sem21);//ceka nit1
+	wait(sem21);//ceka nit1
 
 
 	{
@@ -67,7 +67,7 @@ DWORD WINAPI nit1run(){
 		delete src;
 		wait(mutex); cout << threadName << ": Zatvoren fajl '" << filepath << "'" << endl; signal(mutex);
 	}
-	//signal(sem12); // signalizira niti 2
+	signal(sem12); // signalizira niti 2
 
 	wait(mutex); cout<< threadName << ": Zavrsena!"<<endl; signal(mutex);
 	signal(semMain);

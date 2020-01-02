@@ -169,11 +169,7 @@
   <ItemGroup>
     <None Include="disk1.dat" />
     <None Include="p1.ini" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="Ulaz 0.5MB.jpg" />
-    <Image Include="Ulaz 2MB.jpg" />
-    <Image Include="ulaz.dat" />
+    <None Include="ulaz.dat" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

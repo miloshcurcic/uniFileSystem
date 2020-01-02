@@ -3,7 +3,9 @@
 
 File::~File()
 {
-	myImpl->close();
+	if (myImpl != nullptr) {
+		myImpl->close();
+	}
 }
 
 char File::write(BytesCnt count, char* buffer)
@@ -43,4 +45,5 @@ char File::truncate()
 
 File::File()
 {
+	myImpl = nullptr;
 }

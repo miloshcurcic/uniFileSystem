@@ -33,7 +33,7 @@ int main(){
 	}
 
 	nit1=CreateThread(NULL, 0,(LPTHREAD_START_ROUTINE) nit1run,NULL,0,&ThreadID); //kreira i startuje niti
-	//nit2=CreateThread(NULL, 0,(LPTHREAD_START_ROUTINE) nit2run,NULL,0,&ThreadID);
+	nit2=CreateThread(NULL, 0,(LPTHREAD_START_ROUTINE) nit2run,NULL,0,&ThreadID);
 
 	for(int i=0; i<2; i++) wait(semMain);//cekamo da se niti zavrse
 	delete [] ulazBuffer;
@@ -45,6 +45,6 @@ int main(){
 	CloseHandle(sem12);
 	CloseHandle(sem21);
 	CloseHandle(nit1);
-	//CloseHandle(nit2);
+	CloseHandle(nit2);
 	return 0;
 }

@@ -10,9 +10,12 @@ class MemoryManager;
 class DirectoryManager;
 class ClusterCache;
 class FCB;
+class WinMutex;
+class WinSemaphore;
 
 class KernelFS {
 	bool formatting = false;
+	bool unmounting = false;
 	Partition* mounted_partition = nullptr;
 	MemoryManager* memory_manager = nullptr;
 	DirectoryManager* directory_manager = nullptr;
@@ -20,14 +23,18 @@ class KernelFS {
 	std::unordered_map<std::string, FileHandle*> open_files;
 	unsigned int root_dir_index0 = 0;
 	static const std::regex file_regex;
+	WinMutex* mounted_mutex;
+	WinMutex* fs_mutex;
+	WinSemaphore* open_file_sem;
 public:
+	KernelFS();
     char mount(Partition* partition);
     char unmount(); 
     char format();
     FileCnt readRootDir(); 
     char doesExist(const char* fname);
     KernelFile* open_file(const char* fname, char mode);
-	void close_file(const KernelFile* file);
+	void close_file(KernelFile* file);
     char deleteFile(const char* fname);
 
 

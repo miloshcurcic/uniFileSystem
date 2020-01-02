@@ -8,12 +8,17 @@ KernelFile::KernelFile(KernelFS* file_system, std::string path, FileHandle* file
 	this->file_system = file_system;
 	this->file_handle = file_handle;
 	this->mode = mode;
+	if (this->mode == 'a') {
+		this->pos = this->file_handle->get_size();
+	}
 }
 
 void KernelFile::close()
 {
 	// handle options
-	file_system->close_file(this);
+	if (this->file_handle != nullptr) {
+		file_system->close_file(this);
+	}
 }
 
 char KernelFile::write(BytesCnt count, char* buffer)
