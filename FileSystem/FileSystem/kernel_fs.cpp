@@ -199,6 +199,9 @@ void KernelFS::close_file(KernelFile* file)
 		file->file_handle->release_read_access();
 	}
 	else {
+		if (file->last_accessed_cluster_index != -1 && file->last_written) {
+			write_cluster(file->last_accessed_cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)file->last_accessed_cluster);
+		}
 		file->file_handle->release_write_access();
 	}
 

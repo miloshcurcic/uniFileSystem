@@ -33,8 +33,13 @@ ClusterNo MemoryManager::allocate_cluster_internal(ClusterNo near_to) {
 
 	for (min = index; min >= 0; min--) {
 		for (min_at = (min == index ? at : ClusterSize - 1); min_at >= 0; min_at--) {
-			if (bit_vector[min][min_at] != 0) {
-				min_cluster = min * ClusterSize * BYTE_LEN + min_at * BYTE_LEN + (ClusterNo)log2(bit_vector[min][min_at]);
+			for (int i = (min == index ? near_to % BYTE_LEN : 7); i >= 0; i--) {
+				if ((bit_vector[min][min_at] & ((unsigned char)1 << i)) != 0) {
+					min_cluster = min * ClusterSize * BYTE_LEN + min_at * BYTE_LEN + i;
+					break;
+				}
+			}
+			if (min_cluster != 0) {
 				break;
 			}
 		}
@@ -44,9 +49,14 @@ ClusterNo MemoryManager::allocate_cluster_internal(ClusterNo near_to) {
 	}
 
 	for (max = index; max < bit_vector_size; max++) {
-		for (max_at = (max == index ? at + 1 : 0); max_at < (max == bit_vector_size - 1 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize); max_at++) {
-			if (bit_vector[max][max_at] != 0) {
-				max_cluster = max * ClusterSize * BYTE_LEN + max_at * BYTE_LEN + (ClusterNo)log2(bit_vector[max][max_at] & -(char)bit_vector[max][max_at]);
+		for (max_at = (max == index ? at : 0); max_at < ((max == (bit_vector_size - 1)) ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize); max_at++) {
+			for (int i = (max == index ? near_to % BYTE_LEN : 0); i <= 7; i++) {
+				if ((bit_vector[max][max_at] & ((unsigned char)1 << i)) != 0) {
+					max_cluster = max * ClusterSize * BYTE_LEN + max_at * BYTE_LEN + i;
+					break;
+				}
+			}
+			if (max_cluster != 0) {
 				break;
 			}
 		}

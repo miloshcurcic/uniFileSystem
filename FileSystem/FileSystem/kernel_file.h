@@ -10,6 +10,15 @@ class KernelFile {
 	std::string path;
 	BytesCnt pos;
 	char mode;
+
+	int last_accessed_cluster_index = -1;
+	unsigned int last_accessed_cluster_no = 0;
+	unsigned char last_accessed_cluster[ClusterSize];
+	bool last_written = false;
+
+	void read_local_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer);
+	void write_local_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, const char* buffer);
+
 	KernelFS* file_system;
 public:
 	KernelFile(KernelFS* file_system, std::string path, FileHandle* file_handle, char mode);
