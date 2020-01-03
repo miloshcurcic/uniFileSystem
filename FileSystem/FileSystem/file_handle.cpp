@@ -1,50 +1,46 @@
 #include "file_handle.h"
-#include "win_srw_lock.h"
-#include "win_mutex.h"
 
 FileHandle::FileHandle(const FCB& fcb)
 {
 	this->fcb = fcb;
-	this->handle_srw_lock = new WinSlimReaderWriterLock();
-	this->handle_mutex = new WinMutex();
 }
 
-void FileHandle::acquire_read_access(WinMutex* mutex)
+void FileHandle::acquire_read_access(WinMutex& mutex)
 {
-	handle_mutex->wait();
+	handle_mutex.wait();
 	waiting_count++;
-	mutex->signal();
-	handle_srw_lock->acquire_srw_shared();
-	mutex->wait();
+	mutex.signal();
+	handle_srw_lock.acquire_srw_shared();
+	mutex.wait();
 	read_count++;
 	waiting_count--;
-	handle_mutex->signal();
-	mutex->signal();
+	handle_mutex.signal();
+	mutex.signal();
 }
 
-void FileHandle::acquire_write_access(WinMutex* mutex)
+void FileHandle::acquire_write_access(WinMutex& mutex)
 {
-	handle_mutex->wait();
+	handle_mutex.wait();
 	waiting_count++;
-	mutex->signal();
-	handle_srw_lock->acquire_srw_exclusive();
-	mutex->wait();
+	mutex.signal();
+	handle_srw_lock.acquire_srw_exclusive();
+	mutex.wait();
 	waiting_count--;
-	handle_mutex->signal();
-	mutex->signal();
+	handle_mutex.signal();
+	mutex.signal();
 }
 
 void FileHandle::release_read_access()
 {
-	handle_mutex->wait();
-	handle_srw_lock->release_srw_shared();
+	handle_mutex.wait();
+	handle_srw_lock.release_srw_shared();
 	read_count--;
-	handle_mutex->signal();
+	handle_mutex.signal();
 }
 
 void FileHandle::release_write_access()
 {
-	handle_srw_lock->release_srw_exclusive();
+	handle_srw_lock.release_srw_exclusive();
 }
 
 ClusterNo FileHandle::get_data0_cluster()

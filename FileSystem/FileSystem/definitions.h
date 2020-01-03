@@ -5,7 +5,15 @@
 #include <list>
 #include <deque>
 #include <string>
+#include <tuple>
 #include <memory>
+
+#include "win_crit_section.h"
+#include "win_cs_cond_variable.h"
+#include "win_mutex.h"
+#include "win_semaphore.h"
+#include "win_srw_cond_variable.h"
+#include "win_srw_lock.h"
 
 typedef long FileCnt;
 typedef unsigned long BytesCnt;
@@ -25,6 +33,6 @@ const unsigned int DIRECTORY_ENTRY_WIDTH = 32;
 const unsigned int NUM_INDEX_ENTRIES = ClusterSize / INDEX_ENTRY_WIDTH;
 const unsigned int NUM_DIRECTORY_ENTRIES = ClusterSize / DIRECTORY_ENTRY_WIDTH;
 
-const unsigned int DIRECTORY_INDEX_CACHE_SIZE = 8; // removed
-const unsigned int DIRECTORY_TABLE_CACHE_SIZE = 16; // removed
+const unsigned long MAX_FILE_SIZE = 2 * ClusterSize + NUM_INDEX_ENTRIES * ClusterSize + NUM_INDEX_ENTRIES * NUM_INDEX_ENTRIES * ClusterSize;
+
 const unsigned int CLUSTER_CACHE_SIZE = 64;

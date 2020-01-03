@@ -3,17 +3,20 @@
 #include "fcb.h"
 #include "file_handle.h"
 #include "part.h"
-#include "win_mutex.h"
 
 DirectoryManager::DirectoryManager(Partition* partition, MemoryManager* memory_manager)
 {
+
 	root_dir_cluster_0 =  partition->getNumOfClusters() / (ClusterSize * BYTE_LEN) +  (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? 1 : 0);
 	this->memory_manager = memory_manager;
 	this->partition = partition;
-	this->directory_mutex = new WinMutex();
-
+	
+	/* Read root directory index cluster 0, this will be buffered until DirectoryManager is destroyed */
 	partition->readCluster(root_dir_cluster_0, (char*)root_dir_index_0);
 
+	/* This is used for keeping track of total number of files and deleting files */
+	/* From last_index we can get index0_entry and index1_entry which can help us */
+	/* with managing directory size */
 	last_index = last_index_count = 0;
 	while ((last_index / NUM_INDEX_ENTRIES) + 1 != NUM_INDEX_ENTRIES && root_dir_index_0[(last_index / NUM_INDEX_ENTRIES) + 1] != 0) {
 		last_index += NUM_INDEX_ENTRIES;
@@ -39,9 +42,9 @@ DirectoryManager::DirectoryManager(Partition* partition, MemoryManager* memory_m
 
 }
 
+/* Linear search for file */
 std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_file(const char* file_name, const char* file_ext)
 {
-
 	IndexEntry temp0[NUM_INDEX_ENTRIES];
 	FCB temp1[NUM_DIRECTORY_ENTRIES];
 
@@ -107,31 +110,37 @@ std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_fil
 	return res;
 }
 
+/* If the file doesn't exist file handle cannot be created and we return nullptr, otherwise */
+/* we create the file handle with the found FCB. */
 FileHandle* DirectoryManager::create_file_handle(const char* file_name, const char* file_ext)
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
+
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
-		directory_mutex->signal();
+		directory_mutex.signal();
 		return nullptr;
 	}
+
 	FileHandle* res = new FileHandle(std::get<3>(file_data));
-	directory_mutex->signal();
+	directory_mutex.signal();
 	return res;	
 }
 
+/* If the file exists a new file cannot be added therefore a file handle will not be created */
 FileHandle* DirectoryManager::add_and_get_file_handle(const FCB& fcb)
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 	if (add_file_internal(fcb) == false) {
-		directory_mutex->signal();
+		directory_mutex.signal();
 		return nullptr;
 	}
 	FileHandle* res = new FileHandle(fcb);
-	directory_mutex->signal();
+	directory_mutex.signal();
 	return res;
 }
 
+/* If file exists within the file system a new file cannot be created */
 bool DirectoryManager::add_file_internal(const FCB& file_info) {
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_info.name, file_info.ext);
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) != 0) {
@@ -144,7 +153,6 @@ bool DirectoryManager::add_file_internal(const FCB& file_info) {
 	}
 
 	if (root_dir_index_0[last_index / NUM_INDEX_ENTRIES] == 0) {
-		// Check if allocation failed
 		unsigned int near_to = 0;
 		if (last_index == 0) {
 			near_to = root_dir_cluster_0;
@@ -152,14 +160,23 @@ bool DirectoryManager::add_file_internal(const FCB& file_info) {
 		else {
 			near_to = root_dir_index_0[((last_index / NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
 		}
+		
 		root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
+		
+		if (root_dir_index_0[last_index / NUM_INDEX_ENTRIES] == 0) {
+			/* Allocation failed, restore previous state */
+			if (last_index_count == 0 && last_index != 0) {
+				last_index--;
+				last_index_count = NUM_DIRECTORY_ENTRIES;
+			}
+			return false;
+		}
 	}
 
 	IndexEntry temp0[NUM_INDEX_ENTRIES];
 	partition->readCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
 
 	if (temp0[last_index % NUM_INDEX_ENTRIES] == 0) {
-		// What if alloc failed
 		unsigned int near_to = 0;
 		if (last_index % NUM_INDEX_ENTRIES != 0) {
 			near_to = temp0[((last_index % NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
@@ -168,6 +185,20 @@ bool DirectoryManager::add_file_internal(const FCB& file_info) {
 			near_to = root_dir_index_0[last_index / NUM_INDEX_ENTRIES];
 		}
 		temp0[last_index % NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
+
+		if (temp0[last_index % NUM_INDEX_ENTRIES] == 0) {
+			/* Allocation failed, restore previous state */
+			if (last_index % NUM_INDEX_ENTRIES == 0) {
+				memory_manager->deallocate_cluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES]);
+				root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = 0;
+			}
+			if (last_index_count == 0 && last_index != 0) {
+				last_index--;
+				last_index_count = NUM_DIRECTORY_ENTRIES;
+			}
+			return false;
+		}
+
 		partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
 	}
 
@@ -183,16 +214,16 @@ bool DirectoryManager::add_file_internal(const FCB& file_info) {
 
 bool DirectoryManager::add_file(const FCB& file_info)
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 	bool res = add_file_internal(file_info);
-	directory_mutex->signal();
+	directory_mutex.signal();
 
 	return res;
 }
 
 void DirectoryManager::update_or_add(const FCB& file_info)
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_info.name, file_info.ext);
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) != 0) {
@@ -207,6 +238,7 @@ void DirectoryManager::update_or_add(const FCB& file_info)
 		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
 	}
 	else {
+		add_file_internal(file_info);
 		if (last_index_count == NUM_DIRECTORY_ENTRIES) {
 			last_index++;
 			last_index_count = 0;
@@ -249,16 +281,16 @@ void DirectoryManager::update_or_add(const FCB& file_info)
 		partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
 
 	}
-	directory_mutex->signal();
+	directory_mutex.signal();
 }
 
 bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
-		directory_mutex->signal();
+		directory_mutex.signal();
 		return false;
 	}
 
@@ -370,37 +402,36 @@ bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
 		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
 	}
 
-	directory_mutex->signal();
+	directory_mutex.signal();
 	return true;
 }
 
 FileCnt DirectoryManager::get_file_count()
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 	FileCnt res = last_index * NUM_DIRECTORY_ENTRIES + last_index_count;
-	directory_mutex->signal();
+	directory_mutex.signal();
 	return res;
 }
 
 void DirectoryManager::format()
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 	memset(root_dir_index_0, 0, ClusterSize * sizeof(unsigned char));
 	last_index = last_index_count = 0;
-	directory_mutex->signal();
+	directory_mutex.signal();
 }
 
 bool DirectoryManager::does_file_exist(const char* file_name, const char* file_ext)
 {
-	directory_mutex->wait();
+	directory_mutex.wait();
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
 	bool res = std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) != 0;
-	directory_mutex->signal();
+	directory_mutex.signal();
 	return res;
 }
 
 DirectoryManager::~DirectoryManager()
 {
 	partition->writeCluster(root_dir_cluster_0, (char*)root_dir_index_0);
-	delete directory_mutex;
 }

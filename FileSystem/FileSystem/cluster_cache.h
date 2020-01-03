@@ -3,14 +3,13 @@
 #include "definitions.h"
 
 class Partition;
-class WinMutex;
 
 class ClusterCache {
 	std::list<std::tuple<ClusterNo, bool, char[ClusterSize]>*> queue;
 	std::unordered_map<ClusterNo, std::list<std::tuple<ClusterNo, bool, char[ClusterSize]>*>::iterator> cluster_map;
 	std::unordered_set<ClusterNo> clusters;
 	
-	WinMutex* cache_mutex;
+	WinMutex cache_mutex;
 
 	Partition *partition;
 

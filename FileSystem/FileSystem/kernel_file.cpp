@@ -50,12 +50,24 @@ void KernelFile::close()
 
 char KernelFile::write(BytesCnt count, char* buffer)
 {
+	if (mode == 'r') {
+		return 0;
+	}
+
+	if (file_handle->get_size() == MAX_FILE_SIZE) {
+		return 0;
+	}
+
 	BytesCnt max_size = file_handle->get_max_size();
 
 	std::list<ClusterNo> clusters;
 	if (pos + count > max_size) {
 		unsigned int num_clusters = (pos + count - max_size) / ClusterSize + (((pos + count - max_size) % ClusterSize) > 0 ? 1 : 0);
 		clusters = file_system->allocate_n_nearby_clusters(0, num_clusters);
+		if (clusters.size() != num_clusters) {
+			file_system->deallocate_n_clusters(clusters);
+			return 0;
+		}
 	}
 
 	if (pos + count > file_handle->get_size()) {
@@ -201,6 +213,9 @@ char KernelFile::write(BytesCnt count, char* buffer)
 
 BytesCnt KernelFile::read(BytesCnt count, char* buffer)
 {
+	if (eof()) {
+		return 0;
+	}
 	BytesCnt size = file_handle->get_size();
 	BytesCnt res = (size - pos < count ? size - pos : count);
 	BytesCnt left = res;
@@ -320,5 +335,8 @@ BytesCnt KernelFile::getFileSize()
 
 char KernelFile::truncate()
 {
+	if (mode == 'r') {
+		return 0;
+	}
 	return 0;
 }

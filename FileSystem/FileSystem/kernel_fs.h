@@ -10,8 +10,6 @@ class MemoryManager;
 class DirectoryManager;
 class ClusterCache;
 class FCB;
-class WinMutex;
-class WinSemaphore;
 
 class KernelFS {
 	bool formatting = false;
@@ -23,9 +21,10 @@ class KernelFS {
 	std::unordered_map<std::string, FileHandle*> open_files;
 	unsigned int root_dir_index0 = 0;
 	static const std::regex file_regex;
-	WinMutex* mounted_mutex;
-	WinMutex* fs_mutex;
-	WinSemaphore* open_file_sem;
+
+	WinMutex mounted_mutex;
+	WinMutex fs_mutex;
+	WinSemaphore open_file_sem;
 public:
 	KernelFS();
     char mount(Partition* partition);
@@ -37,10 +36,13 @@ public:
 	void close_file(KernelFile* file);
     char deleteFile(const char* fname);
 
-
 	void write_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, const char* buffer);
 	void read_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer);
+
 	std::list<ClusterNo> allocate_n_nearby_clusters(ClusterNo near_to, unsigned int count);
 	ClusterNo allocate_nearby_cluster(ClusterNo near_to);
 	ClusterNo allocate_nearby_empty_cluster(ClusterNo near_to);
+	void deallocate_n_clusters(std::list<ClusterNo>& clusters);
+	void deallocate_cluster(ClusterNo cluster_no);
+	~KernelFS();
 };

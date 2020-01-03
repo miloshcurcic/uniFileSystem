@@ -75,9 +75,6 @@
     <ClInclude Include="file_handle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="testprimer.h">
-      <Filter>Test</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Library Include="particija.lib">
@@ -130,12 +127,6 @@
     <ClCompile Include="file.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="nit1.cpp">
-      <Filter>Test</Filter>
-    </ClCompile>
-    <ClCompile Include="nit2.cpp">
-      <Filter>Test</Filter>
-    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Test</Filter>
     </ClCompile>
@@ -150,10 +141,5 @@
     <None Include="ulaz.dat">
       <Filter>Test</Filter>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="ulaz.dat">
-      <Filter>Test</Filter>
-    </Image>
   </ItemGroup>
 </Project>

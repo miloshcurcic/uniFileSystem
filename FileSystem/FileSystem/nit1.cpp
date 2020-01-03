@@ -20,8 +20,9 @@ DWORD WINAPI nit1run(){
 		wait(mutex); cout<< threadName << ": Prepisan sadrzaj 'ulaz.dat' u '" << filepath << "'"<<endl; signal(mutex);
 		delete f;
 		wait(mutex); cout<< threadName << ": zatvoren fajl '" << filepath << "'"<<endl; signal(mutex);
-	}
+	}	
 
+	
 	{
 		File *src,*dst;
 		char filepath[]="/fajl1.dat";

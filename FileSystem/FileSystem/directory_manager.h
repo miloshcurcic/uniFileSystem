@@ -5,7 +5,6 @@ class FCB;
 class MemoryManager;
 class Partition;
 class FileHandle;
-class WinMutex;
 
 class DirectoryManager {
 	MemoryManager* memory_manager;
@@ -16,7 +15,7 @@ class DirectoryManager {
 	unsigned int last_index;
 	unsigned int last_index_count;
 
-	WinMutex* directory_mutex;
+	WinMutex directory_mutex;
 
 	Partition* partition;
 

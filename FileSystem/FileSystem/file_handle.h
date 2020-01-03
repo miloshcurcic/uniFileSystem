@@ -2,19 +2,16 @@
 
 #include "fcb.h"
 
-class WinSlimReaderWriterLock;
-class WinMutex;
-
 class FileHandle {
 	FCB fcb;
 	unsigned int read_count = 0;
 	unsigned int waiting_count = 0;
-	WinSlimReaderWriterLock* handle_srw_lock;
-	WinMutex* handle_mutex;
+	WinSlimReaderWriterLock handle_srw_lock;
+	WinMutex handle_mutex;
 public:
 	FileHandle(const FCB& fcb);
-	void acquire_read_access(WinMutex* mutex);
-	void acquire_write_access(WinMutex* mutex);
+	void acquire_read_access(WinMutex& mutex);
+	void acquire_write_access(WinMutex& mutex);
 	void release_read_access();
 	void release_write_access();
 	ClusterNo get_data0_cluster();
