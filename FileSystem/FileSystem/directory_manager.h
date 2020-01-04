@@ -5,9 +5,11 @@ class FCB;
 class MemoryManager;
 class Partition;
 class FileHandle;
+class ClusterCache;
 
 class DirectoryManager {
 	MemoryManager* memory_manager;
+	ClusterCache* directory_cache;
 
 	ClusterNo root_dir_cluster_0;
 	IndexEntry root_dir_index_0[NUM_INDEX_ENTRIES];
@@ -22,6 +24,8 @@ class DirectoryManager {
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> find_file(const char* file_name, const char* file_ext);
 	bool add_file_internal(const FCB& file_info);
 	void add_non_existing_file_internal(const FCB& file_info);
+
+	void deallocate_directory_cluster(ClusterNo cluster_no);
 public:
 	DirectoryManager(Partition* partition, MemoryManager* memory_manager);
 

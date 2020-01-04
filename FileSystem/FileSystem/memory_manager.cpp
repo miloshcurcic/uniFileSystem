@@ -7,7 +7,7 @@ MemoryManager::MemoryManager(Partition* partition)
 	this->partition = partition;
 
 	bit_vector_size = partition->getNumOfClusters() / (ClusterSize * BYTE_LEN) + (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? 1 : 0);
-	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize;
+	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN)) / BYTE_LEN : ClusterSize;
 	unsigned int upper_bit_limit = (partition->getNumOfClusters() % BYTE_LEN) != 0 ? (1 << (partition->getNumOfClusters() % BYTE_LEN)) : 0;
 
 	memset(empty_cluster, 0, ClusterSize * sizeof(unsigned char));
@@ -49,7 +49,7 @@ ClusterNo MemoryManager::allocate_cluster_internal(ClusterNo near_to) {
 	unsigned int index = near_to / (ClusterSize * BYTE_LEN);
 	unsigned int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
 
-	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize;
+	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN)) / BYTE_LEN : ClusterSize;
 	unsigned int upper_bit_limit = (partition->getNumOfClusters() % BYTE_LEN) != 0 ? (1 << (partition->getNumOfClusters() % BYTE_LEN)) : 0;
 	
 	ClusterNo cluster = 0;
@@ -149,7 +149,7 @@ std::list<ClusterNo> MemoryManager::allocate_n_clusters_internal(ClusterNo near_
 	unsigned int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
 	unsigned int set_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN);
 
-	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize;
+	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN)) / BYTE_LEN : ClusterSize;
 	unsigned int upper_bit_limit = (partition->getNumOfClusters() % BYTE_LEN) != 0 ? (1 << (partition->getNumOfClusters() % BYTE_LEN)) : 0;
 
 	ClusterNo cluster = 0;

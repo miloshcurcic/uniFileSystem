@@ -38,4 +38,5 @@ const unsigned long MAX_FILE_SIZE = 2 * ClusterSize + NUM_INDEX_ENTRIES * Cluste
 
 const unsigned int INDEX0_CACHE_SIZE = 8;
 const unsigned int INDEX1_CACHE_SIZE = 32;
+const unsigned int DIRECTORY_CACHE_SIZE = 64;
 const unsigned int CLUSTER_CACHE_SIZE = 128;

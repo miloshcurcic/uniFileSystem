@@ -315,7 +315,7 @@ void KernelFS::free_handle(FileHandle* handle)
 	}
 	if (file.index1_0 != 0) {
 		IndexEntry temp[NUM_INDEX_ENTRIES];
-		index0_cache->read_cluster(file.index1_0, 0, ClusterSize * sizeof(unsigned int), (char*)temp);
+		index0_cache->read_cluster(file.index1_0, 0, ClusterSize * sizeof(unsigned char), (char*)temp);
 		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
 			if (temp[i] != 0) {
 				deallocate_data_cluster(temp[i]);

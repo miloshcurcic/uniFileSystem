@@ -161,6 +161,8 @@
     <ClCompile Include="kernel_fs.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="memory_manager.cpp" />
+    <ClCompile Include="nit1.cpp" />
+    <ClCompile Include="nit2.cpp" />
     <ClCompile Include="win_cs_cond_variable.cpp" />
     <ClCompile Include="win_crit_section.cpp" />
     <ClCompile Include="win_mutex.cpp" />
