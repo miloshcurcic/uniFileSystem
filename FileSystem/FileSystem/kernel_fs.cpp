@@ -15,49 +15,49 @@ void KernelFS::free_handle(FileHandle* handle)
 	/* for quick allocation. */
 	FCB file = handle->get_fcb();
 	if (file.data0 != 0) {
-		memory_manager->deallocate_cluster(file.data0);
+		deallocate_data_cluster(file.data0);
 		file.data0 = 0;
 	}
 	if (file.data1 != 0) {
-		memory_manager->deallocate_cluster(file.data1);
+		deallocate_data_cluster(file.data1);
 		file.data1 = 0;
 	}
 	if (file.index1_0 != 0) {
 		IndexEntry temp[NUM_INDEX_ENTRIES];
-		mounted_partition->readCluster(file.index1_0, (char*)temp);
+		index0_cache->read_cluster(file.index1_0, 0, ClusterSize * sizeof(unsigned int), (char*)temp);
 		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
 			if (temp[i] != 0) {
-				memory_manager->deallocate_cluster(temp[i]);
+				deallocate_data_cluster(temp[i]);
 			}
 			else {
 				break;
 			}
 		}
-		memory_manager->deallocate_cluster(file.index1_0);
+		deallocate_index0_cluster(file.index1_0);
 		file.index1_0 = 0;
 	}
 	if (file.index2_0 != 0) {
 		IndexEntry temp_l0[NUM_INDEX_ENTRIES];
-		mounted_partition->readCluster(file.index2_0, (char*)temp_l0);
+		index0_cache->read_cluster(file.index2_0, 0, ClusterSize * sizeof(unsigned char), (char*)temp_l0);
 		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
 			if (temp_l0[i] != 0) {
 				IndexEntry temp_l1[NUM_INDEX_ENTRIES];
-				mounted_partition->readCluster(temp_l0[i], (char*)temp_l1);
+				index1_cache->read_cluster(temp_l0[i], 0, ClusterSize * sizeof(unsigned char), (char*)temp_l1);
 				for (IndexEntry j = 0; j < NUM_INDEX_ENTRIES; j++) {
 					if (temp_l1[j] != 0) {
-						memory_manager->deallocate_cluster(temp_l1[j]);
+						deallocate_data_cluster(temp_l1[j]);
 					}
 					else {
 						break;
 					}
 				}
-				memory_manager->deallocate_cluster(temp_l0[i]);
+				deallocate_index1_cluster(temp_l0[i]);
 			}
 			else {
 				break;
 			}
 		}
-		memory_manager->deallocate_cluster(file.index2_0);
+		deallocate_index0_cluster(file.index2_0);
 		file.index2_0 = 0;
 	}
 	handle->set_data0_cluster(0);
@@ -89,6 +89,8 @@ char KernelFS::mount(Partition* partition)
 	memory_manager = new MemoryManager(partition);
 	directory_manager = new DirectoryManager(partition, memory_manager);
 	cluster_cache = new ClusterCache(partition);
+	index0_cache = new ClusterCache(partition, INDEX0_CACHE_SIZE);
+	index1_cache = new ClusterCache(partition, INDEX1_CACHE_SIZE);
 	mounted_partition = partition;
 
 	fs_mutex.signal();
@@ -119,11 +121,15 @@ char KernelFS::unmount()
 	delete memory_manager;
 	delete directory_manager;
 	delete cluster_cache;
+	delete index0_cache;
+	delete index1_cache;
 
 	memory_manager = nullptr;
 	directory_manager = nullptr;
     mounted_partition = nullptr;
 	cluster_cache = nullptr;
+	index0_cache = nullptr;
+	index1_cache = nullptr;
 
 	unmounting = false;
 
@@ -270,7 +276,7 @@ void KernelFS::close_file(KernelFile* file)
 	}
 
 	if (file->file_handle->get_read_count() == 0 && file->file_handle->get_waiting_count() == 0) {
-		directory_manager->update_or_add(file->file_handle->get_fcb());
+		directory_manager->update_or_add_entry(file->file_handle->get_fcb());
 		open_files.erase(file->path);
 		delete file->file_handle;
 		file->file_handle = nullptr;
@@ -318,6 +324,26 @@ void KernelFS::read_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt b
 	cluster_cache->read_cluster(cluster_no, start_pos, bytes, buffer);
 }
 
+void KernelFS::write_index0(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, const char* buffer)
+{
+	index0_cache->write_cluster(cluster_no, start_pos, bytes, buffer);
+}
+
+void KernelFS::read_index0(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer)
+{
+	index0_cache->read_cluster(cluster_no, start_pos, bytes, buffer);
+}
+
+void KernelFS::write_index1(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, const char* buffer)
+{
+	index1_cache->write_cluster(cluster_no, start_pos, bytes, buffer);
+}
+
+void KernelFS::read_index1(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer)
+{
+	index1_cache->read_cluster(cluster_no, start_pos, bytes, buffer);
+}
+
 std::list<ClusterNo> KernelFS::allocate_n_nearby_clusters(ClusterNo near_to, unsigned int count)
 {
 	return memory_manager->allocate_n_clusters(near_to, count);
@@ -328,6 +354,21 @@ void KernelFS::deallocate_n_clusters(std::list<ClusterNo>& clusters) {
 }
 
 void KernelFS::deallocate_cluster(ClusterNo cluster_no) {
+	memory_manager->deallocate_cluster(cluster_no);
+}
+
+void KernelFS::deallocate_data_cluster(ClusterNo cluster_no) {
+	cluster_cache->flush_cluster_if_exists(cluster_no);
+	memory_manager->deallocate_cluster(cluster_no);
+}
+
+void KernelFS::deallocate_index0_cluster(ClusterNo cluster_no) {
+	index0_cache->flush_cluster_if_exists(cluster_no);
+	memory_manager->deallocate_cluster(cluster_no);
+}
+
+void KernelFS::deallocate_index1_cluster(ClusterNo cluster_no) {
+	index1_cache->flush_cluster_if_exists(cluster_no);
 	memory_manager->deallocate_cluster(cluster_no);
 }
 

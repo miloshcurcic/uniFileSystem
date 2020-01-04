@@ -21,6 +21,7 @@ DWORD WINAPI nit1run(){
 		delete f;
 		wait(mutex); cout<< threadName << ": zatvoren fajl '" << filepath << "'"<<endl; signal(mutex);
 	}	
+
 	
 	{
 		File *src,*dst;

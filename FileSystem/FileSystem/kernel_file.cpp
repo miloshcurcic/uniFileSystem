@@ -7,11 +7,11 @@ ClusterNo KernelFile::read_local_index0(ClusterNo cluster_no, unsigned int entry
 {
 	if (cluster_no != last_table0_cluster) {
 		if (table0_written) {
-			file_system->write_cluster(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+			file_system->write_index0(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
 			table0_written = false;
 		}
 		last_table0_cluster = cluster_no;
-		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+		file_system->read_index0(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
 	}
 	return last_table0[entry];
 }
@@ -20,11 +20,11 @@ void KernelFile::write_local_index0(ClusterNo cluster_no, unsigned int entry, Cl
 {
 	if (cluster_no != last_table0_cluster) {
 		if (table0_written) {
-			file_system->write_cluster(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+			file_system->write_index0(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
 			table0_written = false;
 		}
 		last_table0_cluster = cluster_no;
-		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+		file_system->read_index0(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
 	}
 	last_table0[entry] = value;
 	table0_written = true;
@@ -34,11 +34,11 @@ ClusterNo KernelFile::read_local_index1(ClusterNo cluster_no, unsigned int entry
 {
 	if (cluster_no != last_table1_cluster) {
 		if (table1_written) {
-			file_system->write_cluster(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+			file_system->write_index1(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
 			table1_written = false;
 		}
 		last_table1_cluster = cluster_no;
-		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+		file_system->read_index1(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
 	}
 	return last_table1[entry];
 }
@@ -47,11 +47,11 @@ void KernelFile::write_local_index1(ClusterNo cluster_no, unsigned int entry, Cl
 {
 	if (cluster_no != last_table1_cluster) {
 		if (table1_written) {
-			file_system->write_cluster(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+			file_system->write_index1(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
 			table1_written = false;
 		}
 		last_table1_cluster = cluster_no;
-		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+		file_system->read_index1(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
 	}
 	last_table1[entry] = value;
 	table1_written = true;
@@ -102,10 +102,10 @@ void KernelFile::close()
 			file_system->write_cluster(last_accessed_cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_accessed_cluster);
 		}
 		if (table0_written) {
-			file_system->write_cluster(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+			file_system->write_index0(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
 		}
 		if (table1_written) {
-			file_system->write_cluster(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+			file_system->write_index1(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
 		}
 		file_system->close_file(this);
 	}
@@ -333,5 +333,91 @@ char KernelFile::truncate()
 	if (mode == 'r') {
 		return 0;
 	}
-	return 0;
+	
+	if (eof()) {
+		return 0;
+	}
+
+	BytesCnt size = file_handle->get_size();
+	BytesCnt max_size = file_handle->get_max_size();
+	unsigned int cur_index = pos / ClusterSize + (pos % ClusterSize > 0 ? 1 : 0);
+	unsigned int last_index = max_size / ClusterSize;
+	bool del_first1 = false;
+	bool del_first2 = false;
+
+	file_handle->set_size(pos);
+
+	for (; cur_index < last_index; cur_index++) {
+		if (cur_index == 0) {
+			ClusterNo cluster_no = file_handle->get_data0_cluster();
+			file_system->deallocate_data_cluster(cluster_no);
+			file_handle->set_data0_cluster(0);
+		}
+		else if (cur_index == 1) {
+			ClusterNo cluster_no = file_handle->get_data1_cluster();
+			file_system->deallocate_data_cluster(cluster_no);
+			file_handle->set_data1_cluster(cluster_no);
+		}
+		else if (cur_index > 1 && cur_index < NUM_INDEX_ENTRIES + 2) {
+			unsigned int index_within_table = cur_index - 2;
+
+			if (index_within_table == 0) {
+				del_first1 = true;
+			}
+
+			ClusterNo table_cluster = file_handle->get_index1_cluster();
+			
+			ClusterNo cluster_no = read_local_index0(table_cluster, index_within_table);
+			file_system->deallocate_data_cluster(cluster_no);
+
+			if (!del_first1) {
+				write_local_index0(table_cluster, index_within_table, 0);
+			}
+
+			if (((cur_index == last_index - 1) || (index_within_table == NUM_INDEX_ENTRIES - 1)) && del_first1) {
+				del_first1 = false;
+				file_system->deallocate_index0_cluster(table_cluster);
+				file_handle->set_index1_cluster(0);
+			}
+		}
+		else {
+			unsigned int pos_in_table = cur_index - 2 - NUM_INDEX_ENTRIES;
+			unsigned int index_within_table0 = pos_in_table / NUM_INDEX_ENTRIES;
+			unsigned int index_within_table1 = pos_in_table % NUM_INDEX_ENTRIES;
+
+			if (index_within_table0 == 0 && index_within_table1 == 0) {
+				del_first1 = true;
+			}
+
+			if (index_within_table1 == 0) {
+				del_first2 = true;
+			}
+
+			ClusterNo table0_cluster = file_handle->get_index2_cluster();
+			ClusterNo table1_cluster = read_local_index0(table0_cluster, index_within_table0);
+			ClusterNo cluster_no = read_local_index1(table1_cluster, index_within_table1);
+
+			file_system->deallocate_data_cluster(cluster_no);
+			
+			if (!del_first2) {
+				write_local_index1(table1_cluster, index_within_table1, 0);
+			}
+
+			if (((cur_index == last_index - 1) || (index_within_table1 == NUM_INDEX_ENTRIES - 1)) && del_first2) {
+				del_first2 = false;
+				file_system->deallocate_index1_cluster(table1_cluster);
+				if (!del_first1) {
+					write_local_index0(table0_cluster, index_within_table0, 0);
+				}
+			}
+
+			if (((cur_index == last_index - 1) || (index_within_table0 == NUM_INDEX_ENTRIES - 1)) && del_first1) {
+				del_first1 = false;
+				file_system->deallocate_index0_cluster(table0_cluster);
+				file_handle->set_index2_cluster(0);
+			}
+		}
+	}
+
+	return 1;
 }
