@@ -8,65 +8,6 @@
 
 const std::regex KernelFS::file_regex("(?:\\\\|/)([[:w:]_]{1,8})\\.([[:w:]_]{1,3})");
 
-void KernelFS::free_handle(FileHandle* handle)
-{
-	/* Deallocate all clusters used by the file, possible optimization */
-	/* would be discarding those to a cluster pool that would be used */
-	/* for quick allocation. */
-	FCB file = handle->get_fcb();
-	if (file.data0 != 0) {
-		deallocate_data_cluster(file.data0);
-		file.data0 = 0;
-	}
-	if (file.data1 != 0) {
-		deallocate_data_cluster(file.data1);
-		file.data1 = 0;
-	}
-	if (file.index1_0 != 0) {
-		IndexEntry temp[NUM_INDEX_ENTRIES];
-		index0_cache->read_cluster(file.index1_0, 0, ClusterSize * sizeof(unsigned int), (char*)temp);
-		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
-			if (temp[i] != 0) {
-				deallocate_data_cluster(temp[i]);
-			}
-			else {
-				break;
-			}
-		}
-		deallocate_index0_cluster(file.index1_0);
-		file.index1_0 = 0;
-	}
-	if (file.index2_0 != 0) {
-		IndexEntry temp_l0[NUM_INDEX_ENTRIES];
-		index0_cache->read_cluster(file.index2_0, 0, ClusterSize * sizeof(unsigned char), (char*)temp_l0);
-		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
-			if (temp_l0[i] != 0) {
-				IndexEntry temp_l1[NUM_INDEX_ENTRIES];
-				index1_cache->read_cluster(temp_l0[i], 0, ClusterSize * sizeof(unsigned char), (char*)temp_l1);
-				for (IndexEntry j = 0; j < NUM_INDEX_ENTRIES; j++) {
-					if (temp_l1[j] != 0) {
-						deallocate_data_cluster(temp_l1[j]);
-					}
-					else {
-						break;
-					}
-				}
-				deallocate_index1_cluster(temp_l0[i]);
-			}
-			else {
-				break;
-			}
-		}
-		deallocate_index0_cluster(file.index2_0);
-		file.index2_0 = 0;
-	}
-	handle->set_data0_cluster(0);
-	handle->set_data1_cluster(0);
-	handle->set_index1_cluster(0);
-	handle->set_index2_cluster(0);
-	handle->set_size(0);
-}
-
 KernelFS::KernelFS() : open_file_sem(0)
 {
 }
@@ -304,12 +245,21 @@ char KernelFS::deleteFile(const char* fname)
 		fs_mutex.signal();
 		return 0;
 	}
-	
-	if (!directory_manager->delete_file(match.str(1).c_str(), match.str(2).c_str())) {
+
+	auto handle_pos_tuple = directory_manager->create_file_handle_and_get_pos(match.str(1).c_str(), match.str(2).c_str());
+
+	/* File not found */
+	if (std::get<3>(handle_pos_tuple) == nullptr) {
 		fs_mutex.signal();
 		return 0;
 	}
-	
+
+	/* Splitting work that different modules do, directory entry will only be accessed through directory manager and */
+	/* file data will only be accessed through KernelFS. */
+	directory_manager->delete_existing_file_entry(std::get<3>(handle_pos_tuple)->get_fcb(), std::get<0>(handle_pos_tuple), std::get<1>(handle_pos_tuple), std::get<2>(handle_pos_tuple));
+	free_handle(std::get<3>(handle_pos_tuple));
+	delete std::get<3>(handle_pos_tuple);
+
 	fs_mutex.signal();
 	return 1;
 }
@@ -347,6 +297,65 @@ void KernelFS::read_index1(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt by
 std::list<ClusterNo> KernelFS::allocate_n_nearby_clusters(ClusterNo near_to, unsigned int count)
 {
 	return memory_manager->allocate_n_clusters(near_to, count);
+}
+
+void KernelFS::free_handle(FileHandle* handle)
+{
+	/* Deallocate all clusters used by the file, possible optimization */
+	/* would be discarding those to a cluster pool that would be used */
+	/* for quick allocation. */
+	FCB file = handle->get_fcb();
+	if (file.data0 != 0) {
+		deallocate_data_cluster(file.data0);
+		file.data0 = 0;
+	}
+	if (file.data1 != 0) {
+		deallocate_data_cluster(file.data1);
+		file.data1 = 0;
+	}
+	if (file.index1_0 != 0) {
+		IndexEntry temp[NUM_INDEX_ENTRIES];
+		index0_cache->read_cluster(file.index1_0, 0, ClusterSize * sizeof(unsigned int), (char*)temp);
+		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
+			if (temp[i] != 0) {
+				deallocate_data_cluster(temp[i]);
+			}
+			else {
+				break;
+			}
+		}
+		deallocate_index0_cluster(file.index1_0);
+		file.index1_0 = 0;
+	}
+	if (file.index2_0 != 0) {
+		IndexEntry temp_l0[NUM_INDEX_ENTRIES];
+		index0_cache->read_cluster(file.index2_0, 0, ClusterSize * sizeof(unsigned char), (char*)temp_l0);
+		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
+			if (temp_l0[i] != 0) {
+				IndexEntry temp_l1[NUM_INDEX_ENTRIES];
+				index1_cache->read_cluster(temp_l0[i], 0, ClusterSize * sizeof(unsigned char), (char*)temp_l1);
+				for (IndexEntry j = 0; j < NUM_INDEX_ENTRIES; j++) {
+					if (temp_l1[j] != 0) {
+						deallocate_data_cluster(temp_l1[j]);
+					}
+					else {
+						break;
+					}
+				}
+				deallocate_index1_cluster(temp_l0[i]);
+			}
+			else {
+				break;
+			}
+		}
+		deallocate_index0_cluster(file.index2_0);
+		file.index2_0 = 0;
+	}
+	handle->set_data0_cluster(0);
+	handle->set_data1_cluster(0);
+	handle->set_index1_cluster(0);
+	handle->set_index2_cluster(0);
+	handle->set_size(0);
 }
 
 void KernelFS::deallocate_n_clusters(std::list<ClusterNo>& clusters) {

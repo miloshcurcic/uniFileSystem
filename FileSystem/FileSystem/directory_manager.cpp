@@ -110,6 +110,31 @@ std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> DirectoryManager::find_fil
 	return res;
 }
 
+std::tuple<IndexEntry, IndexEntry, unsigned int, FileHandle*> DirectoryManager::create_file_handle_and_get_pos(const char* file_name, const char* file_ext)
+{
+	directory_mutex.wait();
+	
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FileHandle*> res;
+
+	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
+
+	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
+		std::get<3>(res) = nullptr;
+		directory_mutex.signal();
+		return res;
+	}
+
+	FileHandle* handle = new FileHandle(std::get<3>(file_data));
+
+	std::get<0>(res) = std::get<0>(file_data);
+	std::get<1>(res) = std::get<1>(file_data);
+	std::get<2>(res) = std::get<2>(file_data);
+	std::get<3>(res) = handle;
+	
+	directory_mutex.signal();
+	return res;
+}
+
 /* If the file doesn't exist file handle cannot be created and we return nullptr, otherwise */
 /* we create the file handle with the found FCB. */
 FileHandle* DirectoryManager::create_file_handle(const char* file_name, const char* file_ext)
@@ -254,7 +279,7 @@ bool DirectoryManager::update_or_add_entry(const FCB& file_info)
 	return true;
 }
 
-bool DirectoryManager::delete_existing_file_entry(const FCB& file_info)
+bool DirectoryManager::delete_existing_file_entry(const FCB& file_info, IndexEntry entry0, IndexEntry entry1, unsigned int entry2)
 {
 	directory_mutex.wait();
 	IndexEntry temp0[NUM_INDEX_ENTRIES];
@@ -264,7 +289,7 @@ bool DirectoryManager::delete_existing_file_entry(const FCB& file_info)
 	partition->readCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
 	last_index_count--;
 
-	if (std::get<0>(file_data) * NUM_INDEX_ENTRIES + std::get<1>(file_data) == last_index) {
+	if (entry0 * NUM_INDEX_ENTRIES + entry1 == last_index) {
 		if (last_index_count == 0) {
 			memory_manager->deallocate_cluster(temp0[last_index % NUM_INDEX_ENTRIES]);
 			if (last_index % NUM_INDEX_ENTRIES != 0) {
@@ -282,7 +307,7 @@ bool DirectoryManager::delete_existing_file_entry(const FCB& file_info)
 			}
 		}
 		else {
-			temp1[std::get<2>(file_data)] = temp1[last_index_count];
+			temp1[entry2] = temp1[last_index_count];
 			temp1[last_index_count] = ZERO_FCB;
 			partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
 		}
@@ -306,139 +331,17 @@ bool DirectoryManager::delete_existing_file_entry(const FCB& file_info)
 			}
 		}
 
-		partition->readCluster(root_dir_index_0[std::get<0>(file_data)], (char*)temp0);
-		partition->readCluster(temp0[std::get<1>(file_data)], (char*)temp1);
+		partition->readCluster(root_dir_index_0[entry0], (char*)temp0);
+		partition->readCluster(temp0[entry1], (char*)temp1);
 
-		temp1[std::get<2>(file_data)] = moving;
+		temp1[entry2] = moving;
 
-		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
+		partition->writeCluster(temp0[entry1], (char*)temp1);
 	}
 
 	directory_mutex.signal();
 	return true;
 
-}
-
-bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
-{
-	directory_mutex.wait();
-
-	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_name, file_ext);
-	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) == 0) {
-		directory_mutex.signal();
-		return false;
-	}
-
-	/* Deallocate all clusters used by the file, possible optimization */
-	/* would be discarding those to a cluster pool that would be used */
-	/* for quick allocation. */
-	FCB file = std::get<3>(file_data);
-	if (file.data0 != 0) {
-		memory_manager->deallocate_cluster(file.data0);
-		file.data0 = 0;
-	}
-	if (file.data1 != 0) {
-		memory_manager->deallocate_cluster(file.data1);
-		file.data1 = 0;
-	}
-	if (file.index1_0 != 0) {
-		IndexEntry temp[NUM_INDEX_ENTRIES];
-		partition->readCluster(file.index1_0, (char*)temp);
-		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
-			if (temp[i] != 0) {
-				memory_manager->deallocate_cluster(temp[i]);
-			}
-			else {
-				break;
-			}
-		}
-		memory_manager->deallocate_cluster(file.index1_0);
-		file.index1_0 = 0;
-	}
-	if (file.index2_0 != 0) {
-		IndexEntry temp_l0[NUM_INDEX_ENTRIES];
-		partition->readCluster(file.index2_0, (char*)temp_l0);
-		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
-			if (temp_l0[i] != 0) {
-				IndexEntry temp_l1[NUM_INDEX_ENTRIES];
-				partition->readCluster(temp_l0[i], (char*)temp_l1);
-				for (IndexEntry j = 0; j < NUM_INDEX_ENTRIES; j++) {
-					if (temp_l1[j] != 0) {
-						memory_manager->deallocate_cluster(temp_l1[j]);
-					}
-					else {
-						break;
-					}
-				}
-				memory_manager->deallocate_cluster(temp_l0[i]);
-			}
-			else {
-				break;
-			}
-		}
-		memory_manager->deallocate_cluster(file.index2_0);
-		file.index2_0 = 0;
-	}
-
-	IndexEntry temp0[NUM_INDEX_ENTRIES];
-	FCB temp1[NUM_DIRECTORY_ENTRIES];
-
-	partition->readCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
-	partition->readCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
-	last_index_count--;
-
-	if (std::get<0>(file_data) * NUM_INDEX_ENTRIES + std::get<1>(file_data) == last_index) {
-		if (last_index_count == 0) {
-			memory_manager->deallocate_cluster(temp0[last_index % NUM_INDEX_ENTRIES]);
-			if (last_index % NUM_INDEX_ENTRIES != 0) {
-				temp0[last_index % NUM_INDEX_ENTRIES] = 0;
-				partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
-			}
-			else {
-				memory_manager->deallocate_cluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES]);
-				root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = 0;
-			}
-
-			if (last_index != 0) {
-				last_index--;
-				last_index_count = NUM_DIRECTORY_ENTRIES;
-			}	
-		}
-		else {
-			temp1[std::get<2>(file_data)] = temp1[last_index_count];
-			temp1[last_index_count] = ZERO_FCB;
-			partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
-		}
-	}
-	else {
-		FCB moving = temp1[last_index_count];
-
-		if (last_index_count == 0) {
-			memory_manager->deallocate_cluster(temp0[last_index % NUM_INDEX_ENTRIES]);
-			if (last_index % NUM_INDEX_ENTRIES != 0) {
-				temp0[last_index % NUM_INDEX_ENTRIES] = 0;
-				partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
-			}
-			else {
-				memory_manager->deallocate_cluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES]);
-				root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = 0;
-			}
-			if (last_index != 0) {
-				last_index--;
-				last_index_count = NUM_DIRECTORY_ENTRIES;
-			}
-		}
-
-		partition->readCluster(root_dir_index_0[std::get<0>(file_data)], (char*)temp0);
-		partition->readCluster(temp0[std::get<1>(file_data)], (char*)temp1);
-
-		temp1[std::get<2>(file_data)] = moving;
-
-		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
-	}
-
-	directory_mutex.signal();
-	return true;
 }
 
 FileCnt DirectoryManager::get_file_count()
