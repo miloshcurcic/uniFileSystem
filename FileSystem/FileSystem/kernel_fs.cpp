@@ -256,8 +256,8 @@ char KernelFS::deleteFile(const char* fname)
 
 	/* Splitting work that different modules do, directory entry will only be accessed through directory manager and */
 	/* file data will only be accessed through KernelFS. */
-	directory_manager->delete_existing_file_entry(std::get<3>(handle_pos_tuple)->get_fcb(), std::get<0>(handle_pos_tuple), std::get<1>(handle_pos_tuple), std::get<2>(handle_pos_tuple));
 	free_handle(std::get<3>(handle_pos_tuple));
+	directory_manager->delete_existing_file_entry(std::get<3>(handle_pos_tuple)->get_fcb(), std::get<0>(handle_pos_tuple), std::get<1>(handle_pos_tuple), std::get<2>(handle_pos_tuple));
 	delete std::get<3>(handle_pos_tuple);
 
 	fs_mutex.signal();

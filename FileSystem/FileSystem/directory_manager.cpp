@@ -152,19 +152,68 @@ FileHandle* DirectoryManager::create_file_handle(const char* file_name, const ch
 	return res;	
 }
 
-/* If the file exists a new file cannot be added therefore a file handle will not be created */
-FileHandle* DirectoryManager::add_and_get_file_handle(const FCB& fcb)
-{
-	directory_mutex.wait();
-	if (add_file_internal(fcb) == false) {
-		directory_mutex.signal();
-		return nullptr;
+void DirectoryManager::add_non_existing_file_internal(const FCB& file_info) {
+	if (last_index_count == NUM_DIRECTORY_ENTRIES) {
+		last_index++;
+		last_index_count = 0;
 	}
-	FileHandle* res = new FileHandle(fcb);
-	directory_mutex.signal();
-	return res;
-}
 
+	if (root_dir_index_0[last_index / NUM_INDEX_ENTRIES] == 0) {
+		unsigned int near_to = 0;
+		if (last_index == 0) {
+			near_to = root_dir_cluster_0;
+		}
+		else {
+			near_to = root_dir_index_0[((last_index / NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
+		}
+
+		root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
+
+		if (root_dir_index_0[last_index / NUM_INDEX_ENTRIES] == 0) {
+			/* Allocation failed, restore previous state */
+			if (last_index_count == 0 && last_index != 0) {
+				last_index--;
+				last_index_count = NUM_DIRECTORY_ENTRIES;
+			}
+		}
+	}
+
+	IndexEntry temp0[NUM_INDEX_ENTRIES];
+	partition->readCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
+
+	if (temp0[last_index % NUM_INDEX_ENTRIES] == 0) {
+		unsigned int near_to = 0;
+		if (last_index % NUM_INDEX_ENTRIES != 0) {
+			near_to = temp0[((last_index % NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
+		}
+		else {
+			near_to = root_dir_index_0[last_index / NUM_INDEX_ENTRIES];
+		}
+		temp0[last_index % NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
+
+		if (temp0[last_index % NUM_INDEX_ENTRIES] == 0) {
+			/* Allocation failed, restore previous state */
+			if (last_index % NUM_INDEX_ENTRIES == 0) {
+				memory_manager->deallocate_cluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES]);
+				root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = 0;
+			}
+			if (last_index_count == 0 && last_index != 0) {
+				last_index--;
+				last_index_count = NUM_DIRECTORY_ENTRIES;
+			}
+		}
+
+		partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
+	}
+
+	FCB temp1[NUM_DIRECTORY_ENTRIES];
+	partition->readCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
+
+	temp1[last_index_count] = file_info;
+	last_index_count++;
+
+	partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
+}
 /* Used internally by DirectoryManaged to add files to the file system. */
 /* If a file exists within the file system or there's not enough memory */
 /* function returns false. */
@@ -239,15 +288,6 @@ bool DirectoryManager::add_file_internal(const FCB& file_info) {
 	return true;
 }
 
-bool DirectoryManager::add_file_entry(const FCB& file_info)
-{
-	directory_mutex.wait();
-	bool res = add_file_internal(file_info);
-	directory_mutex.signal();
-
-	return res;
-}
-
 /* Used to update existing or add a new FCB to the file system. */
 /* Returns false if there's not enough memory to create a new file entry. */
 bool DirectoryManager::update_or_add_entry(const FCB& file_info)
@@ -267,11 +307,8 @@ bool DirectoryManager::update_or_add_entry(const FCB& file_info)
 		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
 	}
 	else {
-		if (!add_file_internal(file_info)) {
-			directory_mutex.signal();
-			return false;
-		}
-		
+		// what if alloc fails
+		add_non_existing_file_internal(file_info);
 	}
 
 	directory_mutex.signal();
@@ -341,7 +378,6 @@ bool DirectoryManager::delete_existing_file_entry(const FCB& file_info, IndexEnt
 
 	directory_mutex.signal();
 	return true;
-
 }
 
 FileCnt DirectoryManager::get_file_count()

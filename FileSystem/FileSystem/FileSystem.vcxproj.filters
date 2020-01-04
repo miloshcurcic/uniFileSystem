@@ -133,12 +133,6 @@
     <ClCompile Include="main.cpp">
       <Filter>Test</Filter>
     </ClCompile>
-    <ClCompile Include="nit1.cpp">
-      <Filter>Test</Filter>
-    </ClCompile>
-    <ClCompile Include="nit2.cpp">
-      <Filter>Test</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="disk1.dat">

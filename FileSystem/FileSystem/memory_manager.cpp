@@ -7,15 +7,25 @@ MemoryManager::MemoryManager(Partition* partition)
 	this->partition = partition;
 
 	bit_vector_size = partition->getNumOfClusters() / (ClusterSize * BYTE_LEN) + (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? 1 : 0);
+	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize;
+	unsigned int upper_bit_limit = (partition->getNumOfClusters() % BYTE_LEN) != 0 ? (1 << (partition->getNumOfClusters() % BYTE_LEN)) : 0;
 
 	memset(empty_cluster, 0, ClusterSize * sizeof(unsigned char));
 
 	bit_vector = new unsigned char* [bit_vector_size];
 	for (unsigned int i = 0; i < bit_vector_size; i++) {
 		bit_vector[i] = new unsigned char[ClusterSize];
-		partition->readCluster(i, (char*)bit_vector[i]);
-		for (unsigned long j = 0; j < ClusterSize; j++) {
-			for (unsigned char k = 1; k != 0; k <<= 1) {
+		partition->readCluster(i, (char*)(bit_vector[i]));
+		unsigned int i_limit = ClusterSize;
+		if (i == (bit_vector_size - 1)) {
+			i_limit = upper_byte_limit;
+		}
+		for (unsigned long j = 0; j < upper_byte_limit; j++) {
+			unsigned int bit_limit = 0;
+			if ((i == (bit_vector_size - 1)) && (j == (upper_byte_limit - 1))) {
+				bit_limit = upper_bit_limit;
+			}
+			for (unsigned char k = 1; k != bit_limit; k <<= 1) {
 				if ((bit_vector[i][j] & k) != 0) {
 					available_clusters++;
 				}
@@ -38,21 +48,25 @@ ClusterNo MemoryManager::allocate_cluster_internal(ClusterNo near_to) {
 
 	unsigned int index = near_to / (ClusterSize * BYTE_LEN);
 	unsigned int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
-	unsigned int set_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN);
+
+	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize;
+	unsigned int upper_bit_limit = (partition->getNumOfClusters() % BYTE_LEN) != 0 ? (1 << (partition->getNumOfClusters() % BYTE_LEN)) : 0;
+	
 	ClusterNo cluster = 0;
 
 	for (unsigned int cluster_id = index; cluster_id < bit_vector_size; cluster_id++) {
-		unsigned int upper_byte_limit;
-		if (cluster_id != bit_vector_size - 1 || set_byte_limit == 0) {
-			upper_byte_limit = ClusterSize;
-		}
-		else {
-			upper_byte_limit = set_byte_limit;
+		unsigned int byte_limit = ClusterSize;
+		if (cluster_id == bit_vector_size - 1) {
+			byte_limit = upper_byte_limit;
 		}
 		for (unsigned int byte_id = (cluster_id == index ? at : 0); byte_id < upper_byte_limit; byte_id++) {
-			for (unsigned char bit_id = (byte_id == at && cluster_id == index ? (unsigned char)1 << (near_to % BYTE_LEN) : 1); bit_id != 0; bit_id <<= 1) {
+			unsigned int bit_limit = 0;
+			if ((cluster_id == (bit_vector_size - 1)) && (byte_id == (upper_byte_limit - 1))) {
+				bit_limit = upper_bit_limit;
+			}
+			for (unsigned char bit_id = (byte_id == at && cluster_id == index ? (unsigned char)1 << (near_to % BYTE_LEN) : 1); bit_id != bit_limit; bit_id <<= 1) {
 				if ((bit_vector[cluster_id][byte_id] & bit_id) != 0) {
-					cluster = cluster_id * ClusterSize * BYTE_LEN + byte_id * BYTE_LEN + (unsigned char)log2(bit_id);
+					cluster = cluster_id * ClusterSize * BYTE_LEN + byte_id * BYTE_LEN + (ClusterNo)log2(bit_id);
 					bit_vector[cluster_id][byte_id] &= ~bit_id;
 					break;
 				}
@@ -135,18 +149,22 @@ std::list<ClusterNo> MemoryManager::allocate_n_clusters_internal(ClusterNo near_
 	unsigned int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
 	unsigned int set_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN);
 
+	unsigned int upper_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize;
+	unsigned int upper_bit_limit = (partition->getNumOfClusters() % BYTE_LEN) != 0 ? (1 << (partition->getNumOfClusters() % BYTE_LEN)) : 0;
+
 	ClusterNo cluster = 0;
 
 	for (unsigned int cluster_id = index; cluster_id < bit_vector_size; cluster_id++) {
-		unsigned int upper_byte_limit;
-		if (cluster_id != bit_vector_size - 1 || set_byte_limit == 0) {
-			upper_byte_limit = ClusterSize;
-		}
-		else {
-			upper_byte_limit = set_byte_limit;
+		unsigned int byte_limit = ClusterSize;
+		if (cluster_id == bit_vector_size - 1) {
+			byte_limit = upper_byte_limit;
 		}
 		for (unsigned int byte_id = (cluster_id == index ? at : 0); byte_id < upper_byte_limit; byte_id++) {
-			for (unsigned char bit_id = (byte_id == at && cluster_id == index ? (unsigned char)1 << (near_to % BYTE_LEN) : 1); bit_id != 0; bit_id <<= 1) {
+			unsigned int bit_limit = 0;
+			if ((cluster_id == (bit_vector_size - 1)) && (byte_id == (upper_byte_limit - 1))) {
+				bit_limit = upper_bit_limit;
+			}
+			for (unsigned char bit_id = (byte_id == at && cluster_id == index ? (unsigned char)1 << (near_to % BYTE_LEN) : 1); bit_id != bit_limit; bit_id <<= 1) {
 				if ((bit_vector[cluster_id][byte_id] & bit_id) != 0) {
 					cluster = cluster_id * ClusterSize * BYTE_LEN + byte_id * BYTE_LEN + (unsigned char)log2(bit_id);
 					near_to = cluster;
@@ -195,7 +213,7 @@ void MemoryManager::deallocate_cluster(ClusterNo cluster)
 {
 	memory_mutex.wait();
 	unsigned int bit_vector_index = cluster / (ClusterSize * BYTE_LEN);
-	unsigned int inner_index = cluster % (ClusterSize * BYTE_LEN);
+	unsigned int inner_index = (cluster % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
 	unsigned int bit_pos = cluster % BYTE_LEN;
 	
 	bit_vector[bit_vector_index][inner_index] |= (char)(1 << bit_pos);

@@ -21,17 +21,15 @@ class DirectoryManager {
 
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> find_file(const char* file_name, const char* file_ext);
 	bool add_file_internal(const FCB& file_info);
+	void add_non_existing_file_internal(const FCB& file_info);
 public:
 	DirectoryManager(Partition* partition, MemoryManager* memory_manager);
 
 	std::tuple <IndexEntry, IndexEntry, unsigned int, FileHandle*> create_file_handle_and_get_pos(const char* file_name, const char* file_ext);
 	FileHandle* create_file_handle(const char* file_name, const char* file_ext);
-	FileHandle* add_and_get_file_handle(const FCB& file_info);
 
-	bool add_file_entry(const FCB& file_info);
 	bool update_or_add_entry(const FCB& file_info);
 	bool delete_existing_file_entry(const FCB& file_info, IndexEntry entry0, IndexEntry entry1, unsigned int entry2);
-	bool delete_file(const char* file_name, const char* file_ext);
 	FileCnt get_file_count();
 	void format();
 	bool does_file_exist(const char* file_name, const char* file_ext);
