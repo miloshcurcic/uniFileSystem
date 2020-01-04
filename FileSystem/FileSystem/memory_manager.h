@@ -5,7 +5,7 @@
 class Partition;
 
 class MemoryManager {
-	int bit_vector_size;
+	unsigned int bit_vector_size;
 	unsigned char** bit_vector;
 	Partition* partition;
 	
@@ -19,6 +19,7 @@ public:
 	ClusterNo allocate_cluster(ClusterNo near_to = 0);
 	ClusterNo allocate_empty_cluster(ClusterNo near_to = 0);
 	std::list<ClusterNo> allocate_n_clusters(ClusterNo near_to, unsigned int count);
+	std::list<ClusterNo> allocate_n_clusters_internal(ClusterNo near_to, unsigned int count);
 	void deallocate_cluster(ClusterNo cluster);
 	void deallocate_n_clusters(std::list<ClusterNo>& clusters);
 	void format();

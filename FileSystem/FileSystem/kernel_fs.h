@@ -25,6 +25,8 @@ class KernelFS {
 	WinMutex mounted_mutex;
 	WinMutex fs_mutex;
 	WinSemaphore open_file_sem;
+
+	void free_handle(FileHandle* handle);
 public:
 	KernelFS();
     char mount(Partition* partition);

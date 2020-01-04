@@ -132,6 +132,7 @@
     <ClInclude Include="file_handle.h" />
     <ClInclude Include="fs.h" />
     <ClInclude Include="memory_manager.h" />
+    <ClInclude Include="testprimer.h" />
     <ClInclude Include="win_srw_cond_variable.h" />
     <ClInclude Include="win_srw_lock.h" />
     <ClInclude Include="win_cs_cond_variable.h" />
@@ -156,6 +157,8 @@
     <ClCompile Include="kernel_fs.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="memory_manager.cpp" />
+    <ClCompile Include="nit1.cpp" />
+    <ClCompile Include="nit2.cpp" />
     <ClCompile Include="win_cs_cond_variable.cpp" />
     <ClCompile Include="win_crit_section.cpp" />
     <ClCompile Include="win_mutex.cpp" />

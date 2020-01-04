@@ -2,6 +2,61 @@
 #include "kernel_file.h"
 #include "file_handle.h"
 
+
+ClusterNo KernelFile::read_local_index0(ClusterNo cluster_no, unsigned int entry)
+{
+	if (cluster_no != last_table0_cluster) {
+		if (table0_written) {
+			file_system->write_cluster(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+			table0_written = false;
+		}
+		last_table0_cluster = cluster_no;
+		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+	}
+	return last_table0[entry];
+}
+
+void KernelFile::write_local_index0(ClusterNo cluster_no, unsigned int entry, ClusterNo value)
+{
+	if (cluster_no != last_table0_cluster) {
+		if (table0_written) {
+			file_system->write_cluster(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+			table0_written = false;
+		}
+		last_table0_cluster = cluster_no;
+		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+	}
+	last_table0[entry] = value;
+	table0_written = true;
+}
+
+ClusterNo KernelFile::read_local_index1(ClusterNo cluster_no, unsigned int entry)
+{
+	if (cluster_no != last_table1_cluster) {
+		if (table1_written) {
+			file_system->write_cluster(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+			table1_written = false;
+		}
+		last_table1_cluster = cluster_no;
+		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+	}
+	return last_table1[entry];
+}
+
+void KernelFile::write_local_index1(ClusterNo cluster_no, unsigned int entry, ClusterNo value)
+{
+	if (cluster_no != last_table1_cluster) {
+		if (table1_written) {
+			file_system->write_cluster(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+			table1_written = false;
+		}
+		last_table1_cluster = cluster_no;
+		file_system->read_cluster(cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+	}
+	last_table1[entry] = value;
+	table1_written = true;
+}
+
 void KernelFile::read_local_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesCnt bytes, char* buffer)
 {
 	if (cluster_no != last_accessed_cluster_no) {
@@ -42,8 +97,16 @@ KernelFile::KernelFile(KernelFS* file_system, std::string path, FileHandle* file
 
 void KernelFile::close()
 {
-	// handle options
 	if (this->file_handle != nullptr) {
+		if (last_written) {
+			file_system->write_cluster(last_accessed_cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)last_accessed_cluster);
+		}
+		if (table0_written) {
+			file_system->write_cluster(last_table0_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table0);
+		}
+		if (table1_written) {
+			file_system->write_cluster(last_table1_cluster, 0, ClusterSize * sizeof(unsigned char), (char*)last_table1);
+		}
 		file_system->close_file(this);
 	}
 }
@@ -63,7 +126,7 @@ char KernelFile::write(BytesCnt count, char* buffer)
 	std::list<ClusterNo> clusters;
 	if (pos + count > max_size) {
 		unsigned int num_clusters = (pos + count - max_size) / ClusterSize + (((pos + count - max_size) % ClusterSize) > 0 ? 1 : 0);
-		clusters = file_system->allocate_n_nearby_clusters(0, num_clusters);
+		clusters = file_system->allocate_n_nearby_clusters(last_cluster, num_clusters);
 		if (clusters.size() != num_clusters) {
 			file_system->deallocate_n_clusters(clusters);
 			return 0;
@@ -80,53 +143,37 @@ char KernelFile::write(BytesCnt count, char* buffer)
 	
 	while (left > 0) {
 		cur_cluster_index = pos / ClusterSize;
+		unsigned int pos_within_cluster = pos % ClusterSize;
+		BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
 
 		if (cur_cluster_index == last_accessed_cluster_index) {
-			unsigned int pos_within_cluster = pos % ClusterSize;
-			BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
+			
 			write_local_cluster(last_accessed_cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-			buffer_pos += count;
-			pos += count;
-			left -= count;
 		}
 		else {
 			if (cur_cluster_index == 0) {
 				ClusterNo cluster_no = file_handle->get_data0_cluster();
 
 				if (cluster_no == 0) {
-					file_handle->set_data0_cluster(clusters.front());
+					cluster_no = clusters.front();
+					last_cluster = cluster_no;
 					clusters.pop_front();
-					cluster_no = file_handle->get_data0_cluster();
+					file_handle->set_data0_cluster(cluster_no);
 				}
 
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
 				write_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 			else if (cur_cluster_index == 1) {
 				ClusterNo cluster_no = file_handle->get_data1_cluster();
 
 				if (cluster_no == 0) {
-					file_handle->set_data1_cluster(clusters.front());
+					cluster_no = clusters.front();
+					last_cluster = cluster_no;
 					clusters.pop_front();
-					cluster_no = file_handle->get_data1_cluster();
+					file_handle->set_data1_cluster(cluster_no);
 				}
 
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
 				write_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 			else if (cur_cluster_index > 1 && cur_cluster_index < NUM_INDEX_ENTRIES + 2) {
 				unsigned int index_within_table = cur_cluster_index - 2;
@@ -138,26 +185,16 @@ char KernelFile::write(BytesCnt count, char* buffer)
 					file_handle->set_index1_cluster(table_cluster);
 				}
 
-				IndexEntry cluster_table[NUM_INDEX_ENTRIES];
-				file_system->read_cluster(table_cluster, 0, ClusterSize, (char*)cluster_table);
-
-				ClusterNo cluster_no = cluster_table[index_within_table];
+				ClusterNo cluster_no = read_local_index0(table_cluster, index_within_table);
 
 				if (cluster_no == 0) {
-					cluster_table[index_within_table] = clusters.front();
+					cluster_no = clusters.front();
+					last_cluster = cluster_no;
+					write_local_index0(table_cluster, index_within_table, cluster_no);
 					clusters.pop_front();
-					cluster_no = cluster_table[index_within_table];
-					file_system->write_cluster(table_cluster, 0, ClusterSize, (char*)cluster_table);
 				}
 
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
 				write_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 			else {
 				unsigned int pos_in_table = cur_cluster_index - 2 - NUM_INDEX_ENTRIES;
@@ -170,42 +207,35 @@ char KernelFile::write(BytesCnt count, char* buffer)
 					table0_cluster = file_system->allocate_nearby_empty_cluster(file_handle->get_index1_cluster());
 					file_handle->set_index2_cluster(table0_cluster);
 				}
-
-				IndexEntry cluster_table[NUM_INDEX_ENTRIES];
-				file_system->read_cluster(table0_cluster, 0, ClusterSize, (char*)cluster_table);
-
-				ClusterNo table1_cluster = cluster_table[index_within_table0];
+				
+				ClusterNo table1_cluster = read_local_index0(table0_cluster, index_within_table0);
 
 				if (table1_cluster == 0) {
 					if (index_within_table0 != 0) {
-						table1_cluster = file_system->allocate_nearby_empty_cluster(index_within_table0 - 1);
+						table1_cluster = file_system->allocate_nearby_empty_cluster(read_local_index0(table0_cluster, index_within_table0 - 1));
 					}
 					else {
 						table1_cluster = file_system->allocate_nearby_empty_cluster(file_handle->get_index2_cluster());
 					}
-					cluster_table[index_within_table0] = table1_cluster;
-					file_system->write_cluster(table0_cluster, 0, ClusterSize, (char*)cluster_table);
+					write_local_index0(table0_cluster, index_within_table0, table1_cluster);
 				}
 
-				file_system->read_cluster(table1_cluster, 0, ClusterSize, (char*)cluster_table);
-
-				ClusterNo cluster_no = cluster_table[index_within_table1];
+				ClusterNo cluster_no = read_local_index1(table1_cluster, index_within_table1);
 
 				if (cluster_no == 0) {
-					cluster_table[index_within_table1] = clusters.front();
+					cluster_no = clusters.front();
+					last_cluster = cluster_no;
+					write_local_index1(table1_cluster, index_within_table1, cluster_no);
 					clusters.pop_front();
-					cluster_no = cluster_table[index_within_table1];
-					file_system->write_cluster(table1_cluster, 0, ClusterSize, (char*)cluster_table);
 				}
 
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
 				write_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 		}
+		buffer_pos += count;
+		pos += count;
+		left -= count;
+
 		last_accessed_cluster_index = cur_cluster_index;
 	}
 	return 0;
@@ -216,6 +246,7 @@ BytesCnt KernelFile::read(BytesCnt count, char* buffer)
 	if (eof()) {
 		return 0;
 	}
+
 	BytesCnt size = file_handle->get_size();
 	BytesCnt res = (size - pos < count ? size - pos : count);
 	BytesCnt left = res;
@@ -224,58 +255,30 @@ BytesCnt KernelFile::read(BytesCnt count, char* buffer)
 
 	while (left > 0) {
 		cur_cluster_index = pos / ClusterSize;
+		unsigned int pos_within_cluster = pos % ClusterSize;
+		BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
 
 		if (cur_cluster_index == last_accessed_cluster_index) {
-			unsigned int pos_within_cluster = pos % ClusterSize;
-			BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
 			read_local_cluster(last_accessed_cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-			buffer_pos += count;
-			pos += count;
-			left -= count;
 		}
 		else {
 			if (cur_cluster_index == 0) {
 				ClusterNo cluster_no = file_handle->get_data0_cluster();
 
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
 				read_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 			else if (cur_cluster_index == 1) {
 				ClusterNo cluster_no = file_handle->get_data1_cluster();
 
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
-
 				read_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 			else if (cur_cluster_index > 1 && cur_cluster_index < NUM_INDEX_ENTRIES + 2) {
 				unsigned int index_within_table = cur_cluster_index - 2;
 
 				ClusterNo table_cluster = file_handle->get_index1_cluster();
-				IndexEntry cluster_table[NUM_INDEX_ENTRIES];
-				file_system->read_cluster(table_cluster, 0, ClusterSize, (char*)cluster_table);
-
-				ClusterNo cluster_no = cluster_table[index_within_table];
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
+				ClusterNo cluster_no = read_local_index0(table_cluster, index_within_table);
 
 				read_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 			else {
 				unsigned int pos_in_table = cur_cluster_index - 2 - NUM_INDEX_ENTRIES;
@@ -283,24 +286,16 @@ BytesCnt KernelFile::read(BytesCnt count, char* buffer)
 				unsigned int index_within_table1 = pos_in_table % NUM_INDEX_ENTRIES;
 
 				ClusterNo table0_cluster = file_handle->get_index2_cluster();
-				IndexEntry cluster_table[NUM_INDEX_ENTRIES];
-				file_system->read_cluster(table0_cluster, 0, ClusterSize, (char*)cluster_table);
-
-				ClusterNo table1_cluster = cluster_table[index_within_table0];
-				file_system->read_cluster(table1_cluster, 0, ClusterSize, (char*)cluster_table);
-
-				ClusterNo cluster_no = cluster_table[index_within_table1];
-
-				unsigned int pos_within_cluster = pos % ClusterSize;
-				BytesCnt count = (ClusterSize - pos_within_cluster > left ? left : ClusterSize - pos_within_cluster);
+				ClusterNo table1_cluster = read_local_index0(table0_cluster, index_within_table0);
+				ClusterNo cluster_no = read_local_index1(table1_cluster, index_within_table1);
 
 				read_local_cluster(cluster_no, pos_within_cluster, count, buffer + buffer_pos);
-
-				buffer_pos += count;
-				pos += count;
-				left -= count;
 			}
 		}
+		buffer_pos += count;
+		pos += count;
+		left -= count;
+
 		last_accessed_cluster_index = cur_cluster_index;
 	}
 	return res;

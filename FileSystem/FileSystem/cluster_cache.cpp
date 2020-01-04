@@ -52,9 +52,10 @@ void ClusterCache::write_cluster(ClusterNo cluster_no, BytesCnt start_pos,BytesC
 	// check if start_pos + bytes > cluster_length
 	auto cluster_info = find_cluster(cluster_no);
 	// prefetch next cluster
+	/*
 	if (cluster_no + 1 < partition->getNumOfClusters()) {
 		find_cluster(cluster_no + 1);
-	}
+	}*/
 
 	auto cluster_data = std::get<2>(*cluster_info);
 	for (unsigned int i = start_pos; i < start_pos + bytes; i++) {
@@ -71,11 +72,12 @@ void ClusterCache::read_cluster(ClusterNo cluster_no, BytesCnt start_pos, BytesC
 	auto cluster_info = find_cluster(cluster_no);
 	
 	// prefetch next cluster
+	/*
 	if (cluster_no + 1 < partition->getNumOfClusters()) {
 		find_cluster(cluster_no + 1);
-	}
+	}*/
 	
-
+	
 	auto cluster_data = std::get<2>(*cluster_info);
 	for (unsigned int i = start_pos; i < start_pos + bytes; i++) {
 		buffer[i-start_pos] = cluster_data[i];

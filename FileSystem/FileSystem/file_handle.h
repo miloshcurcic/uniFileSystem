@@ -10,8 +10,10 @@ class FileHandle {
 	WinMutex handle_mutex;
 public:
 	FileHandle(const FCB& fcb);
-	void acquire_read_access(WinMutex& mutex);
-	void acquire_write_access(WinMutex& mutex);
+	void wait_acquire_read_access(WinMutex& mutex);
+	void acquire_read_access();
+	void acquire_write_access();
+	void wait_acquire_write_access(WinMutex& mutex);
 	void release_read_access();
 	void release_write_access();
 	ClusterNo get_data0_cluster();

@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -35,4 +36,4 @@ const unsigned int NUM_DIRECTORY_ENTRIES = ClusterSize / DIRECTORY_ENTRY_WIDTH;
 
 const unsigned long MAX_FILE_SIZE = 2 * ClusterSize + NUM_INDEX_ENTRIES * ClusterSize + NUM_INDEX_ENTRIES * NUM_INDEX_ENTRIES * ClusterSize;
 
-const unsigned int CLUSTER_CACHE_SIZE = 64;
+const unsigned int CLUSTER_CACHE_SIZE = 128;

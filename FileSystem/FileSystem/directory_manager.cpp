@@ -140,7 +140,9 @@ FileHandle* DirectoryManager::add_and_get_file_handle(const FCB& fcb)
 	return res;
 }
 
-/* If file exists within the file system a new file cannot be created */
+/* Used internally by DirectoryManaged to add files to the file system. */
+/* If a file exists within the file system or there's not enough memory */
+/* function returns false. */
 bool DirectoryManager::add_file_internal(const FCB& file_info) {
 	std::tuple<IndexEntry, IndexEntry, unsigned int, FCB> file_data = find_file(file_info.name, file_info.ext);
 	if (std::memcmp(&std::get<3>(file_data), &ZERO_FCB, sizeof(FCB)) != 0) {
@@ -221,7 +223,9 @@ bool DirectoryManager::add_file(const FCB& file_info)
 	return res;
 }
 
-void DirectoryManager::update_or_add(const FCB& file_info)
+/* Used to update existing or add a new FCB to the file system. */
+/* Returns false if there's not enough memory to create a new file entry. */
+bool DirectoryManager::update_or_add(const FCB& file_info)
 {
 	directory_mutex.wait();
 
@@ -238,50 +242,16 @@ void DirectoryManager::update_or_add(const FCB& file_info)
 		partition->writeCluster(temp0[std::get<1>(file_data)], (char*)temp1);
 	}
 	else {
-		add_file_internal(file_info);
-		if (last_index_count == NUM_DIRECTORY_ENTRIES) {
-			last_index++;
-			last_index_count = 0;
+		if (!add_file_internal(file_info)) {
+			directory_mutex.signal();
+			return false;
 		}
-
-		if (root_dir_index_0[last_index / NUM_INDEX_ENTRIES] == 0) {
-			// Check if allocation failed
-			unsigned int near_to = 0;
-			if (last_index == 0) {
-				near_to = root_dir_cluster_0;
-			}
-			else {
-				near_to = root_dir_index_0[((last_index / NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
-			}
-			root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
-		}
-
-		IndexEntry temp0[NUM_INDEX_ENTRIES];
-		partition->readCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
-
-		if (temp0[last_index % NUM_INDEX_ENTRIES] == 0) {
-			// What if alloc failed
-			unsigned int near_to = 0;
-			if (last_index % NUM_INDEX_ENTRIES != 0) {
-				near_to = temp0[((last_index % NUM_INDEX_ENTRIES) + NUM_INDEX_ENTRIES - 1) % NUM_INDEX_ENTRIES];
-			}
-			else {
-				near_to = root_dir_index_0[last_index / NUM_INDEX_ENTRIES];
-			}
-			temp0[last_index % NUM_INDEX_ENTRIES] = memory_manager->allocate_empty_cluster(near_to);
-			partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
-		}
-
-		FCB temp1[NUM_DIRECTORY_ENTRIES];
-		partition->readCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
-
-		temp1[last_index_count] = file_info;
-		last_index_count++;
-
-		partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
-
+		
 	}
+
 	directory_mutex.signal();
+	
+	return true;
 }
 
 bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
@@ -294,7 +264,9 @@ bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
 		return false;
 	}
 
-	// Remove clusters allocated by file, add cluster pool reusing logic?
+	/* Deallocate all clusters used by the file, possible optimization */
+	/* would be discarding those to a cluster pool that would be used */
+	/* for quick allocation. */
 	FCB file = std::get<3>(file_data);
 	if (file.data0 != 0) {
 		memory_manager->deallocate_cluster(file.data0);
@@ -352,26 +324,24 @@ bool DirectoryManager::delete_file(const char* file_name, const char* file_ext)
 
 	if (std::get<0>(file_data) * NUM_INDEX_ENTRIES + std::get<1>(file_data) == last_index) {
 		if (last_index_count == 0) {
-			if (last_index_count == 0) {
-				memory_manager->deallocate_cluster(temp0[last_index % NUM_INDEX_ENTRIES]);
-				if (last_index % NUM_INDEX_ENTRIES != 0) {
-					temp0[last_index % NUM_INDEX_ENTRIES] = 0;
-					partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
-				}
-				else {
-					memory_manager->deallocate_cluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES]);
-					root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = 0;
-				}
-
-				if (last_index != 0) {
-					last_index--;
-					last_index_count = NUM_DIRECTORY_ENTRIES;
-				}
+			memory_manager->deallocate_cluster(temp0[last_index % NUM_INDEX_ENTRIES]);
+			if (last_index % NUM_INDEX_ENTRIES != 0) {
+				temp0[last_index % NUM_INDEX_ENTRIES] = 0;
+				partition->writeCluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES], (char*)temp0);
 			}
+			else {
+				memory_manager->deallocate_cluster(root_dir_index_0[last_index / NUM_INDEX_ENTRIES]);
+				root_dir_index_0[last_index / NUM_INDEX_ENTRIES] = 0;
+			}
+
+			if (last_index != 0) {
+				last_index--;
+				last_index_count = NUM_DIRECTORY_ENTRIES;
+			}	
 		}
 		else {
-			temp1[std::get<2>(file_data)] = temp1[last_index_count - 1];
-			temp1[last_index_count - 1] = ZERO_FCB;
+			temp1[std::get<2>(file_data)] = temp1[last_index_count];
+			temp1[last_index_count] = ZERO_FCB;
 			partition->writeCluster(temp0[last_index % NUM_INDEX_ENTRIES], (char*)temp1);
 		}
 	}

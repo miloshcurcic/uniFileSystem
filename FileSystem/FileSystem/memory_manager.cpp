@@ -1,21 +1,22 @@
 #include "memory_manager.h"
 #include "part.h"
+#include <math.h>
 
-MemoryManager::MemoryManager(Partition *partition)
+MemoryManager::MemoryManager(Partition* partition)
 {
 	this->partition = partition;
-	
+
 	bit_vector_size = partition->getNumOfClusters() / (ClusterSize * BYTE_LEN) + (partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) != 0 ? 1 : 0);
 
 	memset(empty_cluster, 0, ClusterSize * sizeof(unsigned char));
 
 	bit_vector = new unsigned char* [bit_vector_size];
-	for (int i = 0; i < bit_vector_size; i++) {
+	for (unsigned int i = 0; i < bit_vector_size; i++) {
 		bit_vector[i] = new unsigned char[ClusterSize];
 		partition->readCluster(i, (char*)bit_vector[i]);
-		for (int j = 0; j < ClusterSize; j++) {
-			for (int k = 0; k < 7; k++) {
-				if ((bit_vector[i][j] & ((unsigned char)1 << k)) != 0) {
+		for (unsigned long j = 0; j < ClusterSize; j++) {
+			for (unsigned char k = 1; k != 0; k <<= 1) {
+				if ((bit_vector[i][j] & k) != 0) {
 					available_clusters++;
 				}
 			}
@@ -24,7 +25,6 @@ MemoryManager::MemoryManager(Partition *partition)
 }
 
 ClusterNo MemoryManager::allocate_cluster_internal(ClusterNo near_to) {
-
 	if (available_clusters == 0) {
 		return 0;
 	}
@@ -33,67 +33,58 @@ ClusterNo MemoryManager::allocate_cluster_internal(ClusterNo near_to) {
 
 	if (near_to == 0) {
 		// Try to leave the first 10% of disk for the directory
-		near_to = (ClusterNo)(partition->getNumOfClusters() * 0.1) + rand() % (ClusterNo)(0.9 * partition->getNumOfClusters());
+		near_to = (ClusterNo)(partition->getNumOfClusters() * 0.1) + rand() % (ClusterNo)(0.8 * partition->getNumOfClusters());
 	}
 
-	int index = near_to / (ClusterSize * BYTE_LEN);
-	int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
+	unsigned int index = near_to / (ClusterSize * BYTE_LEN);
+	unsigned int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
+	unsigned int set_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN);
+	ClusterNo cluster = 0;
 
-	int min, max, min_at, max_at;
-	ClusterNo min_cluster = 0, max_cluster = 0;
-
-	for (min = index; min >= 0; min--) {
-		for (min_at = (min == index ? at : ClusterSize - 1); min_at >= 0; min_at--) {
-			for (int i = (min == index ? near_to % BYTE_LEN : 7); i >= 0; i--) {
-				if ((bit_vector[min][min_at] & ((unsigned char)1 << i)) != 0) {
-					min_cluster = min * ClusterSize * BYTE_LEN + min_at * BYTE_LEN + i;
-					break;
-				}
-			}
-			if (min_cluster != 0) {
-				break;
-			}
-		}
-		if (min_cluster != 0) {
-			break;
-		}
-	}
-
-	for (max = index; max < bit_vector_size; max++) {
-		for (max_at = (max == index ? at : 0); max_at < ((max == (bit_vector_size - 1)) ? partition->getNumOfClusters() % (ClusterSize * BYTE_LEN) : ClusterSize); max_at++) {
-			for (int i = (max == index ? near_to % BYTE_LEN : 0); i <= 7; i++) {
-				if ((bit_vector[max][max_at] & ((unsigned char)1 << i)) != 0) {
-					max_cluster = max * ClusterSize * BYTE_LEN + max_at * BYTE_LEN + i;
-					break;
-				}
-			}
-			if (max_cluster != 0) {
-				break;
-			}
-		}
-		if (max_cluster != 0) {
-			break;
-		}
-	}
-
-	if (min >= 0 && max < bit_vector_size) {
-		if (near_to - min_cluster < max_cluster - near_to) {
-			bit_vector[min][min_at] &= ~((unsigned char)1 << min_cluster % BYTE_LEN);
-			return min_cluster;
+	for (unsigned int cluster_id = index; cluster_id < bit_vector_size; cluster_id++) {
+		unsigned int upper_byte_limit;
+		if (cluster_id != bit_vector_size - 1 || set_byte_limit == 0) {
+			upper_byte_limit = ClusterSize;
 		}
 		else {
-			bit_vector[max][max_at] &= ~((unsigned char)1 << max_cluster % BYTE_LEN);
-			return max_cluster;
+			upper_byte_limit = set_byte_limit;
+		}
+		for (unsigned int byte_id = (cluster_id == index ? at : 0); byte_id < upper_byte_limit; byte_id++) {
+			for (unsigned char bit_id = (byte_id == at && cluster_id == index ? (unsigned char)1 << (near_to % BYTE_LEN) : 1); bit_id != 0; bit_id <<= 1) {
+				if ((bit_vector[cluster_id][byte_id] & bit_id) != 0) {
+					cluster = cluster_id * ClusterSize * BYTE_LEN + byte_id * BYTE_LEN + (unsigned char)log2(bit_id);
+					bit_vector[cluster_id][byte_id] &= ~bit_id;
+					break;
+				}
+			}
+			if (cluster != 0) {
+				break;
+			}
+		}
+		if (cluster != 0) {
+			break;
 		}
 	}
-	else if (min >= 0) {
-		bit_vector[min][min_at] &= ~((unsigned char)1 << min_cluster % BYTE_LEN);
-		return min_cluster;
+	if (cluster == 0) {
+		for (unsigned int cluster_id = 0; cluster_id <= index; cluster_id++) {
+			for (unsigned int byte_id = 0; byte_id < (cluster_id == index ? at : ClusterSize); byte_id++) {
+				for (unsigned char bit_id = 1; bit_id != (cluster_id == index && byte_id == at ? (unsigned char)1 << (near_to % BYTE_LEN) : 0); bit_id <<= 1) {
+					if ((bit_vector[cluster_id][byte_id] & bit_id) != 0) {
+						cluster = cluster_id * ClusterSize * BYTE_LEN * byte_id * BYTE_LEN + (unsigned char)log2(bit_id);
+						bit_vector[cluster_id][byte_id] &= ~bit_id;
+						break;
+					}
+				}
+				if (cluster != 0) {
+					break;
+				}
+			}
+			if (cluster != 0) {
+				break;
+			}
+		}
 	}
-	else if (max < bit_vector_size) {
-		bit_vector[max][max_at] &= ~((unsigned char)1 << max_cluster % BYTE_LEN);
-		return max_cluster;
-	}
+	return cluster;
 }
 
 ClusterNo MemoryManager::allocate_cluster(ClusterNo near_to)
@@ -121,17 +112,82 @@ ClusterNo MemoryManager::allocate_empty_cluster(ClusterNo near_to)
 std::list<ClusterNo> MemoryManager::allocate_n_clusters(ClusterNo near_to, unsigned int count)
 {
 	memory_mutex.wait();
+	std::list<ClusterNo> res = allocate_n_clusters_internal(near_to, count);
+	memory_mutex.signal();
+	return res;
+}
+
+std::list<ClusterNo> MemoryManager::allocate_n_clusters_internal(ClusterNo near_to, unsigned int count)
+{
 	std::list<ClusterNo> res;
 	if (available_clusters < count) {
-		memory_mutex.signal();
 		return res;
 	}
-	for (unsigned int i = 0; i < count; i++) {
-		ClusterNo cluster = allocate_cluster_internal(near_to);
-		res.push_back(cluster);
-		near_to = cluster;
+
+	available_clusters-= count;
+
+	if (near_to == 0) {
+		// Try to leave the first 10% of disk for the directory
+		near_to = (ClusterNo)(partition->getNumOfClusters() * 0.1) + rand() % (ClusterNo)(0.8 * partition->getNumOfClusters());
 	}
-	memory_mutex.signal();
+
+	unsigned int index = near_to / (ClusterSize * BYTE_LEN);
+	unsigned int at = (near_to % (ClusterSize * BYTE_LEN)) / BYTE_LEN;
+	unsigned int set_byte_limit = partition->getNumOfClusters() % (ClusterSize * BYTE_LEN);
+
+	ClusterNo cluster = 0;
+
+	for (unsigned int cluster_id = index; cluster_id < bit_vector_size; cluster_id++) {
+		unsigned int upper_byte_limit;
+		if (cluster_id != bit_vector_size - 1 || set_byte_limit == 0) {
+			upper_byte_limit = ClusterSize;
+		}
+		else {
+			upper_byte_limit = set_byte_limit;
+		}
+		for (unsigned int byte_id = (cluster_id == index ? at : 0); byte_id < upper_byte_limit; byte_id++) {
+			for (unsigned char bit_id = (byte_id == at && cluster_id == index ? (unsigned char)1 << (near_to % BYTE_LEN) : 1); bit_id != 0; bit_id <<= 1) {
+				if ((bit_vector[cluster_id][byte_id] & bit_id) != 0) {
+					cluster = cluster_id * ClusterSize * BYTE_LEN + byte_id * BYTE_LEN + (unsigned char)log2(bit_id);
+					near_to = cluster;
+					bit_vector[cluster_id][byte_id] &= ~bit_id;
+					res.push_back(cluster);
+					if (res.size() == count) {
+						break;
+					}
+				}
+			}
+			if (res.size() == count) {
+				break;
+			}
+		}
+		if (res.size() == count) {
+			break;
+		}
+	}
+	if (res.size() != count) {
+		for (unsigned int cluster_id = 0; cluster_id <= index; cluster_id++) {
+			for (unsigned int byte_id = 0; byte_id < (cluster_id == index ? at : ClusterSize); byte_id++) {
+				for (unsigned char bit_id = 1; bit_id != (cluster_id == index && byte_id == at ? (unsigned char)1 << (near_to % BYTE_LEN) : 0); bit_id <<= 1) {
+					if ((bit_vector[cluster_id][byte_id] & bit_id) != 0) {
+						cluster = cluster_id * ClusterSize * BYTE_LEN * byte_id * BYTE_LEN + (unsigned char)log2(bit_id);
+						bit_vector[cluster_id][byte_id] &= ~bit_id;
+						near_to = cluster;
+						res.push_back(cluster);
+						if (res.size() == count) {
+							break;
+						}
+					}
+				}
+				if (res.size() == count) {
+					break;
+				}
+			}
+			if (res.size() == count) {
+				break;
+			}
+		}
+	}
 	return res;
 }
 
@@ -159,12 +215,12 @@ void MemoryManager::format()
 {
 	memory_mutex.wait();
 	available_clusters = partition->getNumOfClusters();
-	for (int i = 0; i < bit_vector_size; i++) {
+	for (unsigned int i = 0; i < bit_vector_size; i++) {
 		memset(bit_vector[i], -1, ClusterSize * sizeof(unsigned char));
 	}
 	available_clusters -= bit_vector_size + 1;
 	// <= root dir index 0
-	for (int i = 0; i <= bit_vector_size; i++) {
+	for (unsigned int i = 0; i <= bit_vector_size; i++) {
 		bit_vector[i / (ClusterSize * BYTE_LEN)][(i % (ClusterSize * BYTE_LEN)) / BYTE_LEN] &= ~((unsigned char)1 << i % BYTE_LEN);
 	}
 	memory_mutex.signal();
@@ -173,7 +229,7 @@ void MemoryManager::format()
 MemoryManager::~MemoryManager()
 {
 	memory_mutex.wait();
-	for (int i = 0; i < bit_vector_size; i++) {
+	for (unsigned int i = 0; i < bit_vector_size; i++) {
 		partition->writeCluster(i, (char*)bit_vector[i]);
 		delete bit_vector[i];
 	}

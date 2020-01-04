@@ -5,29 +5,44 @@ FileHandle::FileHandle(const FCB& fcb)
 	this->fcb = fcb;
 }
 
-void FileHandle::acquire_read_access(WinMutex& mutex)
+void FileHandle::wait_acquire_read_access(WinMutex& mutex)
 {
 	handle_mutex.wait();
 	waiting_count++;
+	handle_mutex.signal();
 	mutex.signal();
 	handle_srw_lock.acquire_srw_shared();
 	mutex.wait();
+	handle_mutex.wait();
 	read_count++;
 	waiting_count--;
 	handle_mutex.signal();
-	mutex.signal();
 }
 
-void FileHandle::acquire_write_access(WinMutex& mutex)
+void FileHandle::acquire_read_access()
+{
+	handle_mutex.wait();
+	handle_srw_lock.acquire_srw_shared();
+	read_count++;
+	handle_mutex.signal();
+}
+
+void FileHandle::acquire_write_access()
+{
+	handle_srw_lock.acquire_srw_exclusive();
+}
+
+void FileHandle::wait_acquire_write_access(WinMutex& mutex)
 {
 	handle_mutex.wait();
 	waiting_count++;
+	handle_mutex.signal();
 	mutex.signal();
 	handle_srw_lock.acquire_srw_exclusive();
 	mutex.wait();
+	handle_mutex.wait();
 	waiting_count--;
 	handle_mutex.signal();
-	mutex.signal();
 }
 
 void FileHandle::release_read_access()
@@ -110,5 +125,5 @@ void FileHandle::set_size(BytesCnt new_size)
 
 BytesCnt FileHandle::get_max_size()
 {
-	return fcb.size / ClusterSize * ClusterSize + (fcb.size % ClusterSize != 0 ? ClusterSize : 0);
+	return fcb.size / ClusterSize * ClusterSize + (fcb.size % ClusterSize > 0 ? ClusterSize : 0);
 }

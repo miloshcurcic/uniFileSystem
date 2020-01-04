@@ -8,6 +8,65 @@
 
 const std::regex KernelFS::file_regex("(?:\\\\|/)([[:w:]_]{1,8})\\.([[:w:]_]{1,3})");
 
+void KernelFS::free_handle(FileHandle* handle)
+{
+	/* Deallocate all clusters used by the file, possible optimization */
+	/* would be discarding those to a cluster pool that would be used */
+	/* for quick allocation. */
+	FCB file = handle->get_fcb();
+	if (file.data0 != 0) {
+		memory_manager->deallocate_cluster(file.data0);
+		file.data0 = 0;
+	}
+	if (file.data1 != 0) {
+		memory_manager->deallocate_cluster(file.data1);
+		file.data1 = 0;
+	}
+	if (file.index1_0 != 0) {
+		IndexEntry temp[NUM_INDEX_ENTRIES];
+		mounted_partition->readCluster(file.index1_0, (char*)temp);
+		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
+			if (temp[i] != 0) {
+				memory_manager->deallocate_cluster(temp[i]);
+			}
+			else {
+				break;
+			}
+		}
+		memory_manager->deallocate_cluster(file.index1_0);
+		file.index1_0 = 0;
+	}
+	if (file.index2_0 != 0) {
+		IndexEntry temp_l0[NUM_INDEX_ENTRIES];
+		mounted_partition->readCluster(file.index2_0, (char*)temp_l0);
+		for (IndexEntry i = 0; i < NUM_INDEX_ENTRIES; i++) {
+			if (temp_l0[i] != 0) {
+				IndexEntry temp_l1[NUM_INDEX_ENTRIES];
+				mounted_partition->readCluster(temp_l0[i], (char*)temp_l1);
+				for (IndexEntry j = 0; j < NUM_INDEX_ENTRIES; j++) {
+					if (temp_l1[j] != 0) {
+						memory_manager->deallocate_cluster(temp_l1[j]);
+					}
+					else {
+						break;
+					}
+				}
+				memory_manager->deallocate_cluster(temp_l0[i]);
+			}
+			else {
+				break;
+			}
+		}
+		memory_manager->deallocate_cluster(file.index2_0);
+		file.index2_0 = 0;
+	}
+	handle->set_data0_cluster(0);
+	handle->set_data1_cluster(0);
+	handle->set_index1_cluster(0);
+	handle->set_index2_cluster(0);
+	handle->set_size(0);
+}
+
 KernelFS::KernelFS() : open_file_sem(0)
 {
 }
@@ -159,36 +218,43 @@ KernelFile* KernelFS::open_file(const char* fname, char mode) // not synchronize
 
 	FileHandle* handle = nullptr;
 
-	
-	if (mode == 'w') {
-		directory_manager->delete_file(match.str(1).c_str(), match.str(2).c_str());
-		FCB new_file(match.str(1).c_str(), match.str(2).c_str());
-		//handle = directory_manager->add_and_get_file_handle(new_file);
-		handle = new FileHandle(new_file);
-		open_files[sname] = handle;
+	auto located = open_files.find(sname);
+	if (located != open_files.end()) {
+		handle = located->second;
+		if (mode == 'r') {
+			handle->wait_acquire_read_access(fs_mutex);
+		}
 	}
 	else {
-		auto located = open_files.find(sname);
-		if (located != open_files.end()) {
-			handle = located->second;
+		handle = directory_manager->create_file_handle(match.str(1).c_str(), match.str(2).c_str());
+		if (mode != 'w' && handle == nullptr) {
+			fs_mutex.signal();
+			return nullptr; // error
 		}
 		else {
-			handle = directory_manager->create_file_handle(match.str(1).c_str(), match.str(2).c_str());
-			if (handle == nullptr) {
-				fs_mutex.signal();
-				return nullptr; // error
-			}
 			open_files[sname] = handle;
+			if (mode == 'r') {
+				handle->acquire_read_access();
+			}
 		}
 	}
+
+	if (mode == 'w' && handle == nullptr) {
+		FCB new_file(match.str(1).c_str(), match.str(2).c_str());
+		handle = new FileHandle(new_file);
+		open_files[sname] = handle;
+		handle->acquire_write_access();
+	}
+	else if (mode != 'r') {
+		handle->wait_acquire_write_access(fs_mutex);
+		if (mode == 'w') {
+			free_handle(handle);
+		}
+	}
+	
 	KernelFile* res = new KernelFile(this, sname, handle, mode);
 	
-	if (mode == 'r') {
-		handle->acquire_read_access(fs_mutex);
-	}
-	else {
-		handle->acquire_write_access(fs_mutex);
-	}
+	fs_mutex.signal();
 
 	return res;
 }
@@ -200,9 +266,6 @@ void KernelFS::close_file(KernelFile* file)
 		file->file_handle->release_read_access();
 	}
 	else {
-		if (file->last_accessed_cluster_index != -1 && file->last_written) {
-			write_cluster(file->last_accessed_cluster_no, 0, ClusterSize * sizeof(unsigned char), (char*)file->last_accessed_cluster);
-		}
 		file->file_handle->release_write_access();
 	}
 
